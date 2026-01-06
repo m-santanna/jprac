@@ -1,5 +1,4 @@
 import z from "zod"
-import { characterSchema } from "./character.js"
 
 export const alphabetSchema = z.literal(["kanji", "katakana", "hiragana", "cyrillic"])
 export type Alphabet = z.infer<typeof alphabetSchema>
@@ -28,9 +27,15 @@ export type Lobby = z.infer<typeof lobbySchema>
 
 export const playerSchema = z.object({
   username: z.string(),
-  character: characterSchema,
-  isReady: z.number().min(0).max(1),
+  sid: z.string(),
+  lobbyId: z.string(),
+  character: z.string(),
+  input: z.string(),
+  isReady: z.boolean(),
   score: z.number().min(0),
   usedTime: z.number().min(0),
 })
 export type Player = z.infer<typeof playerSchema>
+
+export const wsMessageSchema = z.object({ event: z.string(), data: z.object().optional() })
+export type WS_Message = z.infer<typeof wsMessageSchema>
