@@ -1,18 +1,15 @@
-import { Elysia, t } from "elysia"
-import { jwt } from "@elysiajs/jwt"
-import { createPlayer, createLobby, joinLobby, leaveLobby } from "./lib/redis/setters"
+import { Elysia } from "elysia"
+import { createPlayer, createLobby, joinLobby, } from "./lib/redis/setters"
 import { cors } from "@elysiajs/cors"
 import { z } from "zod"
-import { alphabetSchema, gamemodeSchema, lobbyCapacitySchema } from "@repo/types/multiplayer"
-import { isPlayerInLobby } from "./lib/redis/getters"
+import { alphabetSchema, gamemodeSchema, lobbyCapacitySchema, } from "@repo/types/multiplayer"
+import { generateRandomId, generateRandomUsername } from "./lib/server/helpers"
+import { SESSION_COOKIE_SCHEMA } from "./lib/server/schemas"
+import { serverWS } from "./lib/server/ws"
+import { serverJWT } from "./lib/server/jwt"
+import { getPlayerMetadata } from "./lib/redis/getters"
 
-const sessionCookieSchema = {
-  cookie: t.Cookie({
-    session: t.Optional(t.String()),
-  }),
-}
-
-const app = new Elysia()
+export const app = new Elysia()
   .use(
     cors({
       //origin: /.*\.langprac\.vercel.app$/,
@@ -20,90 +17,73 @@ const app = new Elysia()
       credentials: true,
     }),
   )
-  .use(
-    jwt({
-      name: "jwt",
-      secret: process.env.JWT_SECRET!,
-      schema: t.Object({
-        username: t.String(),
-        lobbyId: t.String(),
-      }),
-    }),
-  )
-  .get(
-    "/check-session",
-    async ({ jwt, cookie: { session }, status }) => {
-      if (!session || !session.value) {
-        return status(201, { isInLobby: false, lobbyId: undefined })
-      }
-      const payload = await jwt.verify(session.value)
-      if (!payload) {
-        session.remove()
-        return status(202, { isInLobby: false, lobbyId: undefined })
-      }
-
-      if (
-        await isPlayerInLobby({
-          playerJWT: session.value,
-          lobbyId: payload.lobbyId,
-        })
-      )
-        return status(203, { isInLobby: true, lobbyId: payload.lobbyId })
-      else {
-        session.remove()
-        return status(204, { isInLobby: false, lobbyId: undefined })
-      }
-    },
-    sessionCookieSchema,
-  )
+  .use(serverJWT)
+  .use(serverWS)
   .post(
     "/create-lobby",
     async ({
       jwt,
       cookie: { session },
-      body: { username, alphabet, capacity, gamemode },
+      body: { alphabet, capacity, gamemode },
       status,
     }) => {
-      const lobbyId = crypto.randomUUID()
-      const token = await jwt.sign({ username, lobbyId })
+      session.remove()
 
-      await createPlayer({ jwt: token, username: username })
-      await createLobby({ lobbyId, alphabet, capacity, gamemode, playerJWT: token })
+      const username = generateRandomUsername()
+      const lobbyId = generateRandomId()
+      const sid = generateRandomId()
+      const token = await jwt.sign({ sid, username, lobbyId })
+
+      await createPlayer({ sid, username, lobbyId })
+      await createLobby({ lobbyId, alphabet, capacity, gamemode, sid })
       session.set({
         value: token,
         httpOnly: true,
-        maxAge: 60 * 60, // 1 hour
+        maxAge: 60 * 30, // 30 min
         secure: false,
         sameSite: "lax",
       })
-      return status("Created", { lobbyId })
+      return status("OK", { lobbyId })
     },
     {
       body: z.object({
-        username: z.string().min(4),
         alphabet: alphabetSchema,
         capacity: lobbyCapacitySchema,
         gamemode: gamemodeSchema,
       }),
+      ...SESSION_COOKIE_SCHEMA,
     },
   )
   .post(
     "/join-lobby",
-    async ({ jwt, cookie: { session }, body: { username, lobbyId }, status }) => {
-      if (lobbyId.startsWith("http")) {
-        lobbyId = lobbyId.split("/").filter(Boolean).pop()!
+    async ({ jwt, cookie: { session }, body: { lobbyId }, status }) => {
+
+      const playerMeta = await getPlayerMetadata({ session, jwt })
+      if (playerMeta) {
+        if (playerMeta.lobbyId === lobbyId)
+          return status("OK", { lobbyId })
+        else
+          return status("Not Acceptable", { err: "Wrong lobby!" })
       }
-      const token = await jwt.sign({ username, lobbyId })
+      session.remove()
 
-      const res = await joinLobby({ playerJWT: token, lobbyId })
-      if (res === -1) return status("Locked", { error: "Invalid lobbyId" })
-      if (res === 0) return status("Locked", { error: "Lobby full" })
+      if (lobbyId.startsWith("http"))
+        lobbyId = lobbyId.split("/").filter(Boolean).pop()!
 
-      await createPlayer({ jwt: token, username })
+      const sid = generateRandomId()
+      const username = generateRandomUsername()
+      const token = await jwt.sign({ username, lobbyId, sid })
+
+      const res = await joinLobby({ sid, lobbyId })
+      if (res === -2) return status("Locked", { error: "The lobbyId provided is not valid." })
+      if (res === -1) return status("Locked", { error: "Lobby is currently in-game. Try again later." })
+      if (res === 0) return status("Locked", { error: "The lobby is already full." })
+
+      await createPlayer({ sid, username, lobbyId })
       session.set({
         value: token,
         httpOnly: true,
-        maxAge: 60 * 60, // 1 hour
+        maxAge: 60 * 30, // 30 min
         secure: false,
         sameSite: "lax",
       })
@@ -111,36 +91,12 @@ const app = new Elysia()
     },
     {
       body: z.object({
-        username: z.string(),
         lobbyId: z.string(),
       }),
+      ...SESSION_COOKIE_SCHEMA,
     },
   )
-  .post(
-    "/leave-lobby",
-    async ({ jwt, cookie: { session }, status }) => {
-      if (!session || !session.value) {
-        return status("Not Acceptable", { error: "Cookie not found" })
-      }
-      const payload = await jwt.verify(session.value)
-      if (!payload) return status("Not Acceptable", { error: "JWT verification fail" })
 
-      await leaveLobby({ lobbyId: payload.lobbyId, playerJWT: session.value })
-      session.remove()
-      return status("OK")
-    },
-    sessionCookieSchema,
-  )
-  .post(
-    "/reconnect",
-    async ({ jwt, cookie: { session }, status }) => {
-      if (!session || !session.value) return status("Not Acceptable", { error: "Cookie not found" })
-      const payload = await jwt.verify(session.value)
-      if (!payload) return status("Not Acceptable", { error: "JWT verification fail" })
-      return status("OK", { lobbyId: payload.lobbyId })
-    },
-    sessionCookieSchema,
-  )
   .listen({
     port: 8080,
     hostname: "localhost",

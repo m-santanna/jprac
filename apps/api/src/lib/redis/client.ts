@@ -1,7 +1,3 @@
-import { Redis } from "ioredis"
+import { RedisClient } from "bun"
 
-export const redis = new Redis({
-  port: Number(process.env.REDIS_PORT!),
-  host: process.env.REDIS_HOST!,
-  maxRetriesPerRequest: null,
-})
+export const redis = new RedisClient()
