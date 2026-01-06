@@ -23,7 +23,7 @@ import { alphabetAtom, usernameAtom } from "@/lib/atoms"
 import { useAtom } from "jotai"
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { Loader } from "lucide-react"
+import { Loader, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -40,7 +40,6 @@ const gamemodeArr = [
 ]
 
 export default function CreateLobbyDialog() {
-  const [username, setUsername] = useAtom(usernameAtom)
   const [alphabet, setAlphabet] = useAtom(alphabetAtom)
   const [capacity, setCapacity] = useState(4)
   const [gamemode, setGamemode] = useState("rush")
@@ -48,8 +47,7 @@ export default function CreateLobbyDialog() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: async () => {
-      if (username.length < 4) toast.error("Username must have at least 4 characters")
-      else if (capacity < 2 || capacity > 10)
+      if (capacity < 2 || capacity > 10)
         toast.error("Max Players should be a value between 2 and 10")
       else {
         const res = await fetch(process.env.NEXT_PUBLIC_API_URL! + "/create-lobby", {
@@ -58,7 +56,7 @@ export default function CreateLobbyDialog() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ username, alphabet, capacity, gamemode }),
+          body: JSON.stringify({ alphabet, capacity, gamemode }),
         })
         if (!res.ok) {
           toast.error("Something went wrong. Try again.")
@@ -119,10 +117,6 @@ export default function CreateLobbyDialog() {
         </DialogHeader>
         <div className="flex flex-col gap-2">
           <div className="flex gap-4 items-center">
-            <Label className="w-30">Username</Label>
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div className="flex gap-4 items-center">
             <Label className="w-30">Alphabet</Label>
             <SelectAlphabet />
           </div>
@@ -142,7 +136,11 @@ export default function CreateLobbyDialog() {
           </div>
         </div>
         <Button disabled={isPending} className="sm:text-md" onClick={() => mutate()}>
-          {isPending ? <Loader className="size-4 animate-spin" /> : "Create"}
+          {isPending
+            ? <Loader className="size-4 animate-spin" />
+            : <div className="flex items-center gap-2">
+              <Plus className="size-4" /> Create
+            </div>}
         </Button>
       </DialogContent>
     </Dialog>
