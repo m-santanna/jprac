@@ -16,6 +16,7 @@ export const lobbyPlayersSchema = z.string().array()
 export type LobbyPlayers = z.infer<typeof lobbyPlayersSchema>
 
 export const lobbySchema = z.object({
+  lobbyId: z.string(),
   owner: z.string(),
   usedTime: z.number().min(0),
   alphabet: alphabetSchema,
@@ -30,12 +31,16 @@ export const playerSchema = z.object({
   sid: z.string(),
   lobbyId: z.string(),
   character: z.string(),
-  input: z.string(),
   isReady: z.boolean(),
   score: z.number().min(0),
   usedTime: z.number().min(0),
 })
 export type Player = z.infer<typeof playerSchema>
 
-export const wsMessageSchema = z.object({ event: z.string(), data: z.object().optional() })
+export const wsMessageSchema = z.object({
+  event: z.string(),
+  data: z.object({
+    input: z.string().optional(),
+  }).optional()
+})
 export type WS_Message = z.infer<typeof wsMessageSchema>

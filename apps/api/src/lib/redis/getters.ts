@@ -114,3 +114,10 @@ export async function arePlayersReady({ lobbyId }: { lobbyId: string }): Promise
   }
   return true
 }
+
+export async function getCharacter({ playerMetadata }: { playerMetadata: Player }) {
+  const sid = playerMetadata.sid
+  const raw = await redis.get(`player:${sid}:meta`)
+  const parsed: Player = JSON.parse(raw!)
+  return parsed.character
+}

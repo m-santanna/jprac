@@ -1,4 +1,13 @@
-export const hiraganaMap = {
+import { Alphabet } from "@repo/types/multiplayer"
+
+type CharacterData = {
+  romaji: string
+  romajiVariant?: string
+  meaning?: string
+  meaningVariant?: string
+}
+
+export const hiraganaMap: Record<string, CharacterData> = {
   あ: { romaji: "a" },
   い: { romaji: "i" },
   う: { romaji: "u" },
@@ -86,7 +95,7 @@ export const hiraganaMap = {
   ん: { romaji: "n" },
 }
 
-export const katakanaMap = {
+export const katakanaMap: Record<string, CharacterData> = {
   ア: { romaji: "a" },
   イ: { romaji: "i" },
   ウ: { romaji: "u" },
@@ -174,7 +183,7 @@ export const katakanaMap = {
   ン: { romaji: "n" },
 }
 
-export const cyrillicMap = {
+export const cyrillicMap: Record<string, CharacterData> = {
   А: { romaji: "a" },
   Е: { romaji: "e" },
   Ё: { romaji: "yo" },
@@ -209,7 +218,7 @@ export const cyrillicMap = {
   Щ: { romaji: "shch" },
 }
 
-export const kanjiMap = {
+export const kanjiMap: Record<string, CharacterData> = {
   本: { romaji: "hon", meaning: "book" },
   車: { romaji: "kuruma", meaning: "car" },
   椅子: { romaji: "isu", meaning: "chair" },
@@ -250,4 +259,36 @@ export const kanjiMap = {
 
   ご飯: { romaji: "gohan", meaning: "rice", meaningVariant: "meal" },
   水: { romaji: "mizu", meaning: "water" },
+}
+
+function getAlphabetMap(alphabet: Alphabet) {
+  if (alphabet === "kanji")
+    return kanjiMap
+  else if (alphabet === "katakana")
+    return katakanaMap
+  else if (alphabet === "hiragana")
+    return hiraganaMap
+  else if (alphabet === "cyrillic")
+    return cyrillicMap
+}
+
+export function checkCharacter({ character, alphabet, input }: { character: string, input: string, alphabet: Alphabet }) {
+  const alphabetMap = getAlphabetMap(alphabet)
+  const meta = alphabetMap![character]
+  if (input === meta!.romaji || input === meta!.romajiVariant || input === meta!.meaning || input === meta!.meaningVariant)
+    return true
+  return false
+}
+
+export function selectRandomCharacter(alphabet: Alphabet, character: string) {
+  const alphabetMap = getAlphabetMap(alphabet)
+  const keys = Object.keys(alphabetMap!)
+  const index = Math.floor(Math.random() * keys.length)
+  const picked = keys[index]!
+
+  // this checks makes sure we never return the same character the user just played
+  if (character === picked) {
+    return selectRandomCharacter(alphabet, character)
+  }
+  return picked
 }

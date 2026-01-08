@@ -16,21 +16,23 @@ export function generateRandomId(size?: number): string {
   return size ? nanoid(size) : nanoid(8)
 }
 
-export function checkCharacter({ character, alphabetMap, input }: { character: string, input: string, alphabetMap: any }) {
-  const meta = alphabetMap[character]
-  if (input === meta.romaji || input === meta.romajiVariant || input === meta.meaning || input === meta.meaningVariant)
-    return true
-  return false
-}
+export function startCountdown(
+  seconds: number,
+  onTick: (left: number) => void,
+  onDone: () => void
+) {
+  let remaining = seconds
 
-export function selectRandomCharacter(alphabetMap: any, character: string) {
-  const keys = Object.keys(alphabetMap)
-  const index = Math.floor(Math.random() * keys.length)
-  const picked = keys[index]!
+  function tick() {
+    if (remaining === 0) {
+      onDone()
+      return
+    }
+    onTick(remaining)
 
-  // this checks makes sure we never return the same character the user just played
-  if (character === picked) {
-    return selectRandomCharacter(alphabetMap, character)
+    remaining--
+    setTimeout(tick, 1000)
   }
-  return picked
+
+  tick()
 }

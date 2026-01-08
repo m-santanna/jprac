@@ -61,9 +61,10 @@
     },
     "packages/alphabets": {
       "name": "@repo/alphabets",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "devDependencies": {
         "@repo/eslint-config": "*",
+        "@repo/types": "*",
         "@repo/typescript-config": "*",
         "eslint": "^9.32.0",
         "typescript": "^5.9.2",

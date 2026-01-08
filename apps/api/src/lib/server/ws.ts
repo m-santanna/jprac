@@ -1,12 +1,12 @@
 import Elysia from "elysia";
 import { SESSION_COOKIE_SCHEMA } from "./schemas";
-import { getPlayerMetadata, isPlayerTheLobbyOwner } from "@/lib/redis/getters";
+import { getLobbyMetadata, getPlayerMetadata, isPlayerTheLobbyOwner } from "@/lib/redis/getters";
 import { deleteLobbyAndPlayers, leaveLobby } from "@/lib/redis/setters";
 import { app } from "@/index";
 import { serverJWT } from "@/lib/server/jwt";
-import { Player, wsMessageSchema } from "@repo/types/multiplayer";
+import { Lobby, Player, wsMessageSchema } from "@repo/types/multiplayer";
 import { events } from "@repo/types/events";
-import { handleNotReady, handleReady } from "./ws-handlers";
+import { handleCheckInput, handleNotReady, handleReady } from "./ws-handlers";
 
 export const serverWS = new Elysia()
   .use(serverJWT)
@@ -29,15 +29,20 @@ export const serverWS = new Elysia()
 
     async message(ws, message) {
       const event = message.event
+      const eventData = message.data
       const session = ws.data.cookie.session
       const jwt = ws.data.jwt
-      const playerMetadata = await getPlayerMetadata({ session, jwt }) as Player
+      const lobbyId = ws.data.params.lobbyId
 
-      if (event === events.READY) {
-        await handleReady({ ws, playerMetadata })
-      }
+      const playerMetadata = await getPlayerMetadata({ session, jwt }) as Player
+      const lobbyMetadata = await getLobbyMetadata({ lobbyId }) as Lobby
+
+      if (event === events.READY)
+        await handleReady({ ws, playerMetadata, lobbyMetadata })
       else if (event === events.NOT_READY)
         await handleNotReady({ ws, playerMetadata })
+      else if (event === events.CHECK_INPUT)
+        await handleCheckInput({ ws, playerMetadata, eventData, lobbyMetadata })
     },
 
     async close(ws) {

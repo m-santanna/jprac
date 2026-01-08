@@ -1,5 +1,6 @@
 import { Alphabet, GameMode, Player, Lobby } from "@repo/types/multiplayer"
 import { redis } from "./client"
+import { selectRandomCharacter } from "@repo/alphabets/alphabets"
 
 const JOIN_LOBBY_SCRIPT = `
     -- KEYS[1] = lobby:lobbyId:players
@@ -55,7 +56,6 @@ export async function createPlayer({
     usedTime: 0,
     isReady: false,
     character: "",
-    input: ""
   }
   await redis.set(key, JSON.stringify(value))
 }
@@ -84,6 +84,7 @@ export async function createLobby({
 }): Promise<void> {
   const key = `lobby:${lobbyId}:meta`
   const value: Lobby = {
+    lobbyId,
     owner: sid,
     capacity: capacity ? capacity : 10,
     alphabet: alphabet ? alphabet : "kanji",
@@ -146,4 +147,81 @@ export async function deleteLobbyAndPlayers({ lobbyId }: { lobbyId: string }) {
     await redis.del(`player:${currJWT}:meta`)
   }
   await redis.del(`lobby:${lobbyId}:players`)
+}
+
+/**
+ * Sets the player state to ready.
+ *
+ * @param playerMetadata The player metadata
+ */
+export async function setPlayerReady({ playerMetadata }: { playerMetadata: Player }) {
+  const sid = playerMetadata.sid
+  const updated: Player = { ...playerMetadata, isReady: true }
+  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+}
+
+/**
+ * Sets the player state to not ready.
+ *
+ * @param playerMetadata The player metadata
+ */
+export async function setPlayerNotReady({ playerMetadata }: { playerMetadata: Player }) {
+  const sid = playerMetadata.sid
+  const updated: Player = { ...playerMetadata, isReady: false }
+  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+}
+
+/**
+ * Sets the lobby state to "in-game".
+ *
+ * @param lobbyMetadata The lobby metadata
+ */
+export async function setLobbyInGame({ lobbyMetadata }: { lobbyMetadata: Lobby }) {
+  const lobbyId = lobbyMetadata.lobbyId
+  const updated: Lobby = { ...lobbyMetadata, gamephase: "in-game" }
+  await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
+}
+
+/**
+ * Increments the score of the player by one.
+ *
+ * @param playerMetadata The player metadata
+ */
+export async function incrementScore({ playerMetadata }: { playerMetadata: Player }) {
+  const sid = playerMetadata.sid
+  const updated = { ...playerMetadata, score: playerMetadata.score + 1, }
+  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+}
+
+/**
+ * Sets the given character as the newest character of the given player.
+ *
+ * @param playerMetadata The player metadata
+ * @param character The character to asign
+ */
+export async function setupCharacter({ playerMetadata, character }: { playerMetadata: Player, character: string }) {
+  const sid = playerMetadata.sid
+  const updated = { ...playerMetadata, character }
+  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+}
+
+/**
+ * Sets up the first character to be used in the given lobby.
+ *
+ * @param lobbyMetadata The lobby metadata
+ *
+ * @returns The first character of the game (which is the same for every player)
+ */
+export async function setupAllPlayersCharacters({ lobbyMetadata }: { lobbyMetadata: Lobby }): Promise<string> {
+  const lobbyId = lobbyMetadata.lobbyId
+  const alphabet = lobbyMetadata.alphabet
+  const character = selectRandomCharacter(alphabet, "")
+  const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
+  for (let i = 0; i < playersArr.length; i++) {
+    const sid = playersArr[i]
+    const raw = await redis.get(`player:${sid}:meta`)
+    const playerMetadata: Player = JSON.parse(raw!)
+    await setupCharacter({ playerMetadata, character })
+  }
+  return character
 }
