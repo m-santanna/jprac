@@ -23,7 +23,7 @@ export const serverWS = new Elysia()
         ws.close(4001, "The playerMeta was undefined!!")
       }
       else
-        console.log(`User ${playerMeta.username} connected to ${lobbyId} with this data: ${playerMeta}`)
+        console.log(`User ${playerMeta.username} connected to ${lobbyId} with this sid: ${playerMeta.sid}`)
       //
     },
 

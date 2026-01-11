@@ -15,24 +15,3 @@ export function generateRandomUsername() {
 export function generateRandomId(size?: number): string {
   return size ? nanoid(size) : nanoid(8)
 }
-
-export function startCountdown(
-  seconds: number,
-  onTick: (left: number) => void,
-  onDone: () => void
-) {
-  let remaining = seconds
-
-  function tick() {
-    if (remaining === 0) {
-      onDone()
-      return
-    }
-    onTick(remaining)
-
-    remaining--
-    setTimeout(tick, 1000)
-  }
-
-  tick()
-}

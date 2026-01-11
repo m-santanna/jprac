@@ -1,6 +1,9 @@
 import z from "zod"
 
-export const alphabetSchema = z.literal(["kanji", "katakana", "hiragana", "cyrillic"])
+export const targetSchema = z.number().min(10).default(50)
+export type Target = z.infer<typeof targetSchema>
+
+export const alphabetSchema = z.literal(["kanji", "katakana", "hiragana", "cyrillic"]).default("kanji")
 export type Alphabet = z.infer<typeof alphabetSchema>
 
 export const gamemodeSchema = z.literal(["rush", "target-score"])
@@ -9,18 +12,15 @@ export type GameMode = z.infer<typeof gamemodeSchema>
 export const gamephaseSchema = z.literal(["lobby", "in-game"])
 export type GamePhase = z.infer<typeof gamephaseSchema>
 
-export const lobbyCapacitySchema = z.coerce.number().min(2).max(10)
+export const lobbyCapacitySchema = z.coerce.number().min(2).max(10).default(10)
 export type LobbyCapacity = z.infer<typeof lobbyCapacitySchema>
-
-export const lobbyPlayersSchema = z.string().array()
-export type LobbyPlayers = z.infer<typeof lobbyPlayersSchema>
 
 export const lobbySchema = z.object({
   lobbyId: z.string(),
   owner: z.string(),
-  usedTime: z.number().min(0),
+  startTime: z.number().optional(),
+  target: targetSchema,
   alphabet: alphabetSchema,
-  gamemode: gamemodeSchema,
   gamephase: gamephaseSchema,
   capacity: lobbyCapacitySchema,
 })
@@ -33,7 +33,6 @@ export const playerSchema = z.object({
   character: z.string(),
   isReady: z.boolean(),
   score: z.number().min(0),
-  usedTime: z.number().min(0),
 })
 export type Player = z.infer<typeof playerSchema>
 

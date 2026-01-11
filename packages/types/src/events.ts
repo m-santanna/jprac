@@ -12,6 +12,8 @@
  * @param CHECK_INPUT Event sent from the client, where they send their character and their input, and waits for the server to confirm if they scored or not.
  * @param SCORED Event sent from the server to the client, confirming the player scored, and sending their new character.
  * @param ANOTHER_PLAYER_SCORED Event sent from the server to the clients subscribed in the specific lobby, informing another player scored their current character.
+ * @param SCORED Event sent from the server to the client, informing the player is done with the game.
+ * @param ANOTHER_PLAYER_SCORED Event sent from the server to the clients subscribed in the specific lobby, informing another player finished the game.
  */
 export const events = {
   INVALID_EVENT_OR_DATA: "INVALID_EVENT_OR_DATA",
@@ -25,4 +27,6 @@ export const events = {
   CHECK_INPUT: "CHECK_INPUT",
   SCORED: "SCORED",
   ANOTHER_PLAYER_SCORED: "ANOTHER_PLAYER_SCORED",
+  FINISHED: "FINISHED",
+  ANOTHER_PLAYER_FINISHED: "FINISHED",
 }

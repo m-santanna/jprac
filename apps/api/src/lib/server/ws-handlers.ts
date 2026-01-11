@@ -3,9 +3,8 @@ import { ServerWebSocket } from "elysia/ws/bun";
 import { arePlayersReady } from "../redis/getters";
 import { events } from "@repo/types/events";
 import { checkCharacter, selectRandomCharacter } from "@repo/alphabets/alphabets";
-import { incrementScore, setLobbyInGame, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, setupCharacter } from "../redis/setters";
+import { lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
 import { app } from "@/index";
-import { startCountdown } from "./helpers";
 
 
 export async function handleReady({ ws, playerMetadata, lobbyMetadata }: {
@@ -46,7 +45,7 @@ export async function handleCheckInput({ ws, playerMetadata, eventData, lobbyMet
   eventData: Record<string, string> | undefined,
   lobbyMetadata: Lobby
 }) {
-  if (!eventData || !eventData.input) {
+  if (!eventData || !eventData.input || !lobbyMetadata.startTime || lobbyMetadata.gamephase !== "in-game") {
     ws.send(events.INVALID_EVENT_OR_DATA)
   }
   else {
@@ -58,15 +57,26 @@ export async function handleCheckInput({ ws, playerMetadata, eventData, lobbyMet
     if (success) {
       const username = playerMetadata.username
       const lobbyId = playerMetadata.lobbyId
+      const target = lobbyMetadata.target
 
       character = selectRandomCharacter(alphabet, character)
-      await incrementScore({ playerMetadata, })
-      await setupCharacter({ playerMetadata, character })
+      const score = await scoreAndSetupCharacter({ playerMetadata, character })
 
-      const userEvent = { event: events.SCORED, data: { character } }
-      const othersEvent = { event: events.ANOTHER_PLAYER_SCORED, data: { username } }
-      ws.send(JSON.stringify(userEvent))
-      ws.publish(lobbyId, JSON.stringify(othersEvent))
+      if (score == target) {
+        await setLobbyPhaseToLobby({ lobbyMetadata })
+        await setAllPlayersNotReady({ lobbyMetadata })
+        const usedTime = Date.now() - lobbyMetadata.startTime
+        const userEvent = { event: events.FINISHED, data: { usedTime } }
+        const othersEvent = { event: events.ANOTHER_PLAYER_FINISHED, data: { username, usedTime } }
+        ws.send(JSON.stringify(userEvent))
+        ws.publish(lobbyId, JSON.stringify(othersEvent))
+      }
+      else {
+        const userEvent = { event: events.SCORED, data: { character } }
+        const othersEvent = { event: events.ANOTHER_PLAYER_SCORED, data: { username } }
+        ws.send(JSON.stringify(userEvent))
+        ws.publish(lobbyId, JSON.stringify(othersEvent))
+      }
     }
   }
 }
@@ -78,13 +88,14 @@ export async function handleCheckInput({ ws, playerMetadata, eventData, lobbyMet
  * @param lobbyMetadata The metadata of the Lobby
  */
 export async function handleGameStart({ lobbyMetadata }: { lobbyMetadata: Lobby }) {
+  const NOW = Date.now()
+  const BUFFER_MS = 3000
+  const startTime = NOW + BUFFER_MS
   const lobbyId = lobbyMetadata.lobbyId
-  await setLobbyInGame({ lobbyMetadata })
+  await lobbyStartUp({ lobbyMetadata, startTime })
   const character = await setupAllPlayersCharacters({ lobbyMetadata })
 
-  let usersEvent = { event: events.LOBBY_STARTING, data: { character } }
+  let usersEvent = { event: events.LOBBY_STARTING, data: { character, startTime } }
   app.server?.publish(lobbyId, JSON.stringify(usersEvent))
-
-  startCountdown(3, timeLeft => app.server?.publish(lobbyId, `${timeLeft}`), () => app.server?.publish(lobbyId, "started!!"))
 }
 

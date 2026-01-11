@@ -1,4 +1,4 @@
-import { Alphabet, GameMode, Player, Lobby } from "@repo/types/multiplayer"
+import { Alphabet, Player, Lobby } from "@repo/types/multiplayer"
 import { redis } from "./client"
 import { selectRandomCharacter } from "@repo/alphabets/alphabets"
 
@@ -53,7 +53,6 @@ export async function createPlayer({
     sid,
     lobbyId,
     score: 0,
-    usedTime: 0,
     isReady: false,
     character: "",
   }
@@ -73,24 +72,23 @@ export async function createLobby({
   lobbyId,
   sid,
   capacity,
+  target,
   alphabet,
-  gamemode,
 }: {
   lobbyId: string
   sid: string
   capacity?: number
+  target?: number
   alphabet?: Alphabet
-  gamemode?: GameMode
 }): Promise<void> {
   const key = `lobby:${lobbyId}:meta`
   const value: Lobby = {
     lobbyId,
     owner: sid,
+    target: target ? target : 50,
     capacity: capacity ? capacity : 10,
     alphabet: alphabet ? alphabet : "kanji",
-    gamemode: gamemode ? gamemode : "rush",
     gamephase: "lobby",
-    usedTime: 0,
   }
   await redis.set(key, JSON.stringify(value))
   await redis.sadd(`lobby:${lobbyId}:players`, sid)
@@ -172,37 +170,58 @@ export async function setPlayerNotReady({ playerMetadata }: { playerMetadata: Pl
 }
 
 /**
- * Sets the lobby state to "in-game".
+ * Sets all players in the given lobby to not ready.
  *
  * @param lobbyMetadata The lobby metadata
  */
-export async function setLobbyInGame({ lobbyMetadata }: { lobbyMetadata: Lobby }) {
+export async function setAllPlayersNotReady({ lobbyMetadata }: { lobbyMetadata: Lobby }) {
   const lobbyId = lobbyMetadata.lobbyId
-  const updated: Lobby = { ...lobbyMetadata, gamephase: "in-game" }
+  const players = await redis.smembers(`lobby:${lobbyId}:players`)
+  for (let i = 0; i < players.length; i++) {
+    const currSid = players[i]
+    const raw = await redis.get(`player:${currSid}:meta`)
+    const currPlayer: Player = JSON.parse(raw!)
+    await setPlayerNotReady({ playerMetadata: currPlayer })
+  }
+}
+
+/**
+ * Sets the lobby state to "in-game" and the startTime to the one provided
+ *
+ * @param lobbyMetadata The lobby metadata
+ * @param startTime The Date time the lobby is supposed to start
+ */
+export async function lobbyStartUp({ lobbyMetadata, startTime }: { lobbyMetadata: Lobby, startTime: number }) {
+  const lobbyId = lobbyMetadata.lobbyId
+  const updated: Lobby = { ...lobbyMetadata, gamephase: "in-game", startTime }
   await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
 }
 
 /**
- * Increments the score of the player by one.
+ * Sets the lobby state to "lobby"
  *
- * @param playerMetadata The player metadata
+ * @param lobbyMetadata The lobby metadata
  */
-export async function incrementScore({ playerMetadata }: { playerMetadata: Player }) {
-  const sid = playerMetadata.sid
-  const updated = { ...playerMetadata, score: playerMetadata.score + 1, }
-  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+export async function setLobbyPhaseToLobby({ lobbyMetadata }: { lobbyMetadata: Lobby }) {
+  const lobbyId = lobbyMetadata.lobbyId
+  const updated: Lobby = { ...lobbyMetadata, gamephase: "lobby" }
+  await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
 }
 
 /**
- * Sets the given character as the newest character of the given player.
+ * Increments the score of the user and updates their character.
  *
  * @param playerMetadata The player metadata
- * @param character The character to asign
+ * @param character The new character to update
+ *
+ * @returns The updated score of the player
  */
-export async function setupCharacter({ playerMetadata, character }: { playerMetadata: Player, character: string }) {
+export async function scoreAndSetupCharacter({ playerMetadata, character }: { playerMetadata: Player, character: string }) {
   const sid = playerMetadata.sid
-  const updated = { ...playerMetadata, character }
+  const score = playerMetadata.score + 1
+  const updated = { ...playerMetadata, score, character }
   await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+  return score
 }
 
 /**
@@ -221,7 +240,9 @@ export async function setupAllPlayersCharacters({ lobbyMetadata }: { lobbyMetada
     const sid = playersArr[i]
     const raw = await redis.get(`player:${sid}:meta`)
     const playerMetadata: Player = JSON.parse(raw!)
-    await setupCharacter({ playerMetadata, character })
+    const updated = { ...playerMetadata, character }
+    await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
   }
   return character
 }
+

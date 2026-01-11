@@ -2,7 +2,7 @@ import { Elysia } from "elysia"
 import { createPlayer, createLobby, joinLobby, } from "./lib/redis/setters"
 import { cors } from "@elysiajs/cors"
 import { z } from "zod"
-import { alphabetSchema, gamemodeSchema, lobbyCapacitySchema, } from "@repo/types/multiplayer"
+import { alphabetSchema, lobbyCapacitySchema, targetSchema, } from "@repo/types/multiplayer"
 import { generateRandomId, generateRandomUsername } from "./lib/server/helpers"
 import { SESSION_COOKIE_SCHEMA } from "./lib/server/schemas"
 import { serverWS } from "./lib/server/ws"
@@ -24,7 +24,7 @@ export const app = new Elysia()
     async ({
       jwt,
       cookie: { session },
-      body: { alphabet, capacity, gamemode },
+      body: { alphabet, capacity, target },
       status,
     }) => {
       session.remove()
@@ -35,7 +35,7 @@ export const app = new Elysia()
       const token = await jwt.sign({ sid, username, lobbyId })
 
       await createPlayer({ sid, username, lobbyId })
-      await createLobby({ lobbyId, alphabet, capacity, gamemode, sid })
+      await createLobby({ lobbyId, alphabet, target, capacity, sid })
       session.set({
         value: token,
         httpOnly: true,
@@ -49,7 +49,7 @@ export const app = new Elysia()
       body: z.object({
         alphabet: alphabetSchema,
         capacity: lobbyCapacitySchema,
-        gamemode: gamemodeSchema,
+        target: targetSchema,
       }),
       ...SESSION_COOKIE_SCHEMA,
     },
@@ -95,6 +95,33 @@ export const app = new Elysia()
       }),
       ...SESSION_COOKIE_SCHEMA,
     },
+  )
+
+  .get('/ws-test', async ({ jwt }) => {
+    const lobbyId = 'lobbytst'
+    const sid1 = 'session1'
+    const sid2 = 'session2'
+    const sid3 = 'session3'
+    const user1 = 'username1'
+    const user2 = 'username2'
+    const user3 = 'username3'
+    const token1 = await jwt.sign({ sid: sid1, username: user1, lobbyId })
+    const token2 = await jwt.sign({ sid: sid2, username: user2, lobbyId })
+    const token3 = await jwt.sign({ sid: sid3, username: user3, lobbyId })
+    createLobby({ lobbyId, sid: sid1, capacity: 3, alphabet: "hiragana" })
+    createPlayer({ sid: sid1, username: user1, lobbyId })
+    await joinLobby({ sid: sid2, lobbyId })
+    createPlayer({ sid: sid2, username: user2, lobbyId })
+    await joinLobby({ sid: sid3, lobbyId })
+    createPlayer({ sid: sid3, username: user3, lobbyId })
+    console.log("token1:")
+    console.log(token1)
+    console.log("token2:")
+    console.log(token2)
+    console.log("token3:")
+    console.log(token3)
+  },
+    SESSION_COOKIE_SCHEMA,
   )
 
   .listen({
