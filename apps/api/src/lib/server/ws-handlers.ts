@@ -1,11 +1,25 @@
-import { Lobby, Player } from "@repo/types/multiplayer";
+import { Lobby, Player, PublicPlayer } from "@repo/types/multiplayer";
 import { ServerWebSocket } from "elysia/ws/bun";
-import { arePlayersReady } from "../redis/getters";
+import { arePlayersReady, getPublicPlayers } from "../redis/getters";
 import { events } from "@repo/types/events";
 import { checkCharacter, selectRandomCharacter } from "@repo/alphabets/alphabets";
-import { lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
+import { leaveLobby, lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
 import { app } from "@/index";
 
+export async function handleJoinLobby({ ws, playerMetadata }: { ws: ServerWebSocket<{}>, playerMetadata: Player }) {
+  const lobbyId = playerMetadata.lobbyId
+  const username = playerMetadata.username
+  const isReady = playerMetadata.isReady
+  const score = playerMetadata.score
+  const user = { username, isReady, score }
+
+  const playersData: PublicPlayer[] = await getPublicPlayers({ lobbyId, playerMetadata })
+
+  const userEvent = { event: events.JOINED, data: { user, others: playersData } }
+  const othersEvent = { event: events.ANOTHER_PLAYER_JOINED, data: user }
+  ws.send(JSON.stringify(userEvent))
+  ws.publish(lobbyId, JSON.stringify(othersEvent))
+}
 
 export async function handleReady({ ws, playerMetadata, lobbyMetadata }: {
   ws: ServerWebSocket<{}>,
@@ -39,7 +53,7 @@ export async function handleNotReady({ ws, playerMetadata }: { ws: ServerWebSock
   ws.publish(lobbyId, JSON.stringify(othersEvent))
 }
 
-export async function handleCheckInput({ ws, playerMetadata, eventData, lobbyMetadata }: {
+export async function handleCheckInput({ ws, playerMetadata, lobbyMetadata, eventData }: {
   ws: ServerWebSocket<{}>,
   playerMetadata: Player,
   eventData: Record<string, string> | undefined,
@@ -99,3 +113,26 @@ export async function handleGameStart({ lobbyMetadata }: { lobbyMetadata: Lobby 
   app.server?.publish(lobbyId, JSON.stringify(usersEvent))
 }
 
+export async function handleLeave({ ws, playerMetadata, lobbyMetadata }: {
+  ws: ServerWebSocket<{}>,
+  playerMetadata: Player,
+  lobbyMetadata: Lobby
+}) {
+  const lobbyId = playerMetadata.lobbyId
+  const username = playerMetadata.username
+  const sid = playerMetadata.sid
+  const owner = lobbyMetadata.owner
+
+  await leaveLobby({ lobbyId, sid })
+
+  if (sid === owner) {
+    const event = { event: events.LOBBY_DESTROYED }
+    app.server?.publish(lobbyId, JSON.stringify(event))
+  }
+  else {
+    const userEvent = { event: events.YOU_LEFT }
+    const othersEvent = { event: events.ANOTHER_PLAYER_LEFT, data: { username } }
+    ws.send(JSON.stringify(userEvent))
+    ws.publish(lobbyId, JSON.stringify(othersEvent))
+  }
+}

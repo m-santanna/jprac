@@ -32,9 +32,16 @@ export const playerSchema = z.object({
   lobbyId: z.string(),
   character: z.string(),
   isReady: z.boolean(),
-  score: z.number().min(0),
+  score: z.number().min(0).default(0),
 })
 export type Player = z.infer<typeof playerSchema>
+
+export const publicPlayerSchema = z.object({
+  username: z.string(),
+  isReady: z.boolean(),
+  score: z.number().min(0).default(0),
+})
+export type PublicPlayer = z.infer<typeof publicPlayerSchema>
 
 export const wsMessageSchema = z.object({
   event: z.string(),

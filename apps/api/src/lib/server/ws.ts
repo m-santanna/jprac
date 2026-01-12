@@ -6,7 +6,7 @@ import { app } from "@/index";
 import { serverJWT } from "@/lib/server/jwt";
 import { Lobby, Player, wsMessageSchema } from "@repo/types/multiplayer";
 import { events } from "@repo/types/events";
-import { handleCheckInput, handleNotReady, handleReady } from "./ws-handlers";
+import { handleCheckInput, handleJoinLobby, handleLeave, handleNotReady, handleReady } from "./ws-handlers";
 
 export const serverWS = new Elysia()
   .use(serverJWT)
@@ -14,16 +14,20 @@ export const serverWS = new Elysia()
 
     async open(ws) {
       const lobbyId = ws.data.params.lobbyId
+      const jwt = ws.data.jwt
+      const session = ws.data.cookie.session
+      const playerMetadata = await getPlayerMetadata({ jwt, session }) as Player
+
       ws.subscribe(lobbyId)
+      await handleJoinLobby({ ws, playerMetadata })
 
       // for development
-      const playerMeta = await getPlayerMetadata({ jwt: ws.data.jwt, session: ws.data.cookie.session })
-      if (!playerMeta) {
+      if (!playerMetadata) {
         console.log("For some reason, the playerMeta was undefined. Closing connection.")
         ws.close(4001, "The playerMeta was undefined!!")
       }
       else
-        console.log(`User ${playerMeta.username} connected to ${lobbyId} with this sid: ${playerMeta.sid}`)
+        console.log(`User ${playerMetadata.username} connected to ${lobbyId} with this sid: ${playerMetadata.sid}`)
       //
     },
 
@@ -43,6 +47,8 @@ export const serverWS = new Elysia()
         await handleNotReady({ ws, playerMetadata })
       else if (event === events.CHECK_INPUT)
         await handleCheckInput({ ws, playerMetadata, eventData, lobbyMetadata })
+      else if (event === events.LEAVE)
+        await handleLeave({ ws, playerMetadata, lobbyMetadata })
     },
 
     async close(ws) {

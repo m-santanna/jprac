@@ -1,4 +1,4 @@
-import { Lobby, Player } from "@repo/types/multiplayer"
+import { Lobby, Player, PublicPlayer } from "@repo/types/multiplayer"
 import { redis } from "./client"
 import { ElysiaJWT } from "@/lib/server/jwt"
 import { Cookie } from "elysia"
@@ -120,4 +120,29 @@ export async function getCharacter({ playerMetadata }: { playerMetadata: Player 
   const raw = await redis.get(`player:${sid}:meta`)
   const parsed: Player = JSON.parse(raw!)
   return parsed.character
+}
+
+/**
+ * Gets all the players (PublicPlayer format) in the given lobby except the player provided.
+ *
+ * @param lobbyId The lobbyId to get the players from
+ * @param playerMetadata The player metadata that is requesting the playerMetadata
+ *
+ * @returns A list with all the PublicPlayers in the lobby, except the player that requested it.
+ */
+export async function getPublicPlayers({ lobbyId, playerMetadata }: { lobbyId: string, playerMetadata: Player }): Promise<PublicPlayer[]> {
+  const usefulData: PublicPlayer[] = []
+  const sid = playerMetadata.sid
+  const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
+
+  for (let i = 0; i < playersArr.length; i++) {
+    const currSid = playersArr[i]
+    if (currSid !== sid) {
+      const currRaw = await redis.get(`player:${currSid}:meta`)
+      const currParsed: Player = JSON.parse(currRaw!)
+      const currData: PublicPlayer = { username: currParsed.username, isReady: currParsed.isReady, score: currParsed.score }
+      usefulData.push(currData)
+    }
+  }
+  return usefulData
 }
