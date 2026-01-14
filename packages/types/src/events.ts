@@ -7,13 +7,13 @@
  * @param NOT_READY Event triggered by the client, where they pressed the not ready button, also waiting for the server.
  * @param LEAVE Event triggered by the client, where they pressed the leave button, also waiting for the server.
  * @param JOINED Event sent from the server to the client, confirming the client joined the lobby.
+ * @param NEW_OWNER Event sentr from the server to client, informing the owner has changed to a different player.
  * @param YOU_ARE_READY Event sent from the server to the client, confirming the client state is ready.
  * @param YOU_ARE_NOT_READY Event sent from the server to the client, confirming the client state is not ready.
  * @param ANOTHER_PLAYER_JOINED Event sent from the server to the clients subscribed in the specific lobby, informing another player joined the lobby.
  * @param ANOTHER_PLAYER_READY Event sent from the server to the clients subscribed in the specific lobby, informing another player state is now ready.
  * @param ANOTHER_PLAYER_NOT_READY Event sent from the server to the clients subscribed in the specific lobby, informing another player state is now not ready.
  * @param ANOTHER_PLAYER_LEFT Event sent from the server to the clients subscribed in the specific lobby, informing another player left the lobby.
- * @param LOBBY_DESTROYED Event sent from the server to the clients subscribed in the specific lobby, informing the lobby was destroyed (the owner left).
  * @param CHECK_INPUT Event sent from the client, where they send their character and their input, and waits for the server to confirm if they scored or not.
  * @param SCORED Event sent from the server to the client, confirming the player scored, and sending their new character.
  * @param ANOTHER_PLAYER_SCORED Event sent from the server to the clients subscribed in the specific lobby, informing another player scored their current character.
@@ -27,6 +27,7 @@ export const events = {
   NOT_READY: "NOT_READY",
   LEAVE: "LEAVE",
   JOINED: "JOINED",
+  NEW_OWNER: "NEW_OWNER",
   YOU_ARE_READY: "YOU_ARE_READY",
   YOU_ARE_NOT_READY: "YOU_ARE_NOT_READY",
   YOU_LEFT: "YOU_LEFT",
@@ -34,7 +35,6 @@ export const events = {
   ANOTHER_PLAYER_READY: "ANOTHER_PLAYER_READY",
   ANOTHER_PLAYER_NOT_READY: "ANOTHER_PLAYER_NOT_READY",
   ANOTHER_PLAYER_LEFT: "ANOTHER_PLAYER_LEFT",
-  LOBBY_DESTROYED: "LOBBY_DESTROYED",
   CHECK_INPUT: "CHECK_INPUT",
   SCORED: "SCORED",
   ANOTHER_PLAYER_SCORED: "ANOTHER_PLAYER_SCORED",
