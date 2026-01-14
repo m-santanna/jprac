@@ -115,21 +115,61 @@ export async function joinLobby({ sid, lobbyId }: { sid: string; lobbyId: string
 }
 
 /**
- * Leaves the lobby.
- * If the user leaving is the owner of the lobby, the lobby is
- * deleted and so are the players inside.
+ * Leaves the lobby. If the owner of the lobby is the one leaving, the lobby selects a new player to be the owner.
  *
  * @param lobbyId - The id of the lobby to delete.
  * @param sid - The sessionId of the player requesting to leave.
+ *
+ * @returns The owner of the lobby, after leave operations. Or undefined if the player leaving is the last one in the lobby.
  */
-export async function leaveLobby({ lobbyId, sid }: { lobbyId: string; sid: string }) {
+export async function leaveLobby({ lobbyId, sid }: { lobbyId: string; sid: string }): Promise<string | undefined> {
   const lobbyMeta = await redis.get(`lobby:${lobbyId}:meta`)
   const parsedMeta: Lobby = JSON.parse(lobbyMeta!)
-  if (parsedMeta.owner === sid) deleteLobbyAndPlayers({ lobbyId })
+  let owner = parsedMeta.owner
+  const numOfPlayers = await redis.scard(`lobby:${lobbyId}:players`)
+  if (numOfPlayers == 1) {
+    await deleteLobbyAndPlayers({ lobbyId })
+    return undefined
+  }
   else {
+    if (parsedMeta.owner === sid)
+      owner = await changeOwner({ lobbyMetadata: parsedMeta })
+
     await redis.srem(`lobby:${lobbyId}:players`, sid)
     await redis.del(`player:${sid}:meta`)
+    return owner
   }
+}
+
+/**
+ * Changes the owner of the given lobby. If the sid is provided, they become the new owner. The lobby assigns a new owner
+ * randomly otherwise.
+ *
+ * @pre Assumes the lobby has at least 2 players.
+ * @pre Also assumes the sid is valid and in the lobby
+ * @param lobbyMetadata The lobby metadata
+ * @param sid The optional sid, which would be the new owner
+ *
+ * @returns The newly assigned owner
+ */
+export async function changeOwner({ lobbyMetadata, sid }: { lobbyMetadata: Lobby, sid?: string }): Promise<string> {
+  const lobbyId = lobbyMetadata.lobbyId
+  const owner = lobbyMetadata.owner
+  if (sid) {
+    const updated = { ...lobbyMetadata, owner: sid }
+    await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
+    return sid
+  }
+
+  const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
+  const candidates = playersArr.filter(p => p !== owner)
+
+  const newOwner = candidates[Math.floor(Math.random() * candidates.length)]
+
+  const updated = { ...lobbyMetadata, owner: newOwner }
+  await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
+
+  return newOwner!
 }
 
 /**

@@ -146,3 +146,17 @@ export async function getPublicPlayers({ lobbyId, playerMetadata }: { lobbyId: s
   }
   return usefulData
 }
+
+/**
+ * Gets the username from the given sid.
+ *
+ * @pre Assumes the sid is valid
+ * @param sid The sid of the player
+ *
+ * @returns The username
+ */
+export async function getUsername({ sid }: { sid: string }) {
+  const raw = await redis.get(`player:${sid}:meta`)
+  const parsed: Player = JSON.parse(raw!)
+  return parsed.username
+}

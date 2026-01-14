@@ -1,6 +1,6 @@
 import { Lobby, Player, PublicPlayer } from "@repo/types/multiplayer";
 import { ServerWebSocket } from "elysia/ws/bun";
-import { arePlayersReady, getPublicPlayers } from "../redis/getters";
+import { arePlayersReady, getPublicPlayers, getUsername } from "../redis/getters";
 import { events } from "@repo/types/events";
 import { checkCharacter, selectRandomCharacter } from "@repo/alphabets/alphabets";
 import { leaveLobby, lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
@@ -121,18 +121,17 @@ export async function handleLeave({ ws, playerMetadata, lobbyMetadata }: {
   const lobbyId = playerMetadata.lobbyId
   const username = playerMetadata.username
   const sid = playerMetadata.sid
-  const owner = lobbyMetadata.owner
+  const before = lobbyMetadata.owner
+  const after = await leaveLobby({ lobbyId, sid })
 
-  await leaveLobby({ lobbyId, sid })
+  const userEvent = { event: events.YOU_LEFT }
+  const othersEvent = { event: events.ANOTHER_PLAYER_LEFT, data: { username } }
+  ws.send(JSON.stringify(userEvent))
+  ws.publish(lobbyId, JSON.stringify(othersEvent))
 
-  if (sid === owner) {
-    const event = { event: events.LOBBY_DESTROYED }
+  if (after && before !== after) {
+    const afterUsername = await getUsername({ sid: after })
+    const event = { event: events.NEW_OWNER, data: { username: afterUsername } }
     app.server?.publish(lobbyId, JSON.stringify(event))
-  }
-  else {
-    const userEvent = { event: events.YOU_LEFT }
-    const othersEvent = { event: events.ANOTHER_PLAYER_LEFT, data: { username } }
-    ws.send(JSON.stringify(userEvent))
-    ws.publish(lobbyId, JSON.stringify(othersEvent))
   }
 }
