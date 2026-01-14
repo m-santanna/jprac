@@ -6,7 +6,7 @@ export type Target = z.infer<typeof targetSchema>
 export const alphabetSchema = z.literal(["kanji", "katakana", "hiragana", "cyrillic"]).default("kanji")
 export type Alphabet = z.infer<typeof alphabetSchema>
 
-export const gamemodeSchema = z.literal(["rush", "target-score"])
+export const gamemodeSchema = z.literal(["rush", "target-score"]).default("target-score")
 export type GameMode = z.infer<typeof gamemodeSchema>
 
 export const gamephaseSchema = z.literal(["lobby", "in-game"])
@@ -40,6 +40,7 @@ export const publicPlayerSchema = z.object({
   username: z.string(),
   isReady: z.boolean(),
   score: z.number().min(0).default(0),
+  isOwner: z.boolean()
 })
 export type PublicPlayer = z.infer<typeof publicPlayerSchema>
 
@@ -47,6 +48,7 @@ export const wsMessageSchema = z.object({
   event: z.string(),
   data: z.object({
     input: z.string().optional(),
+    username: z.string().optional()
   }).optional()
 })
 export type WS_Message = z.infer<typeof wsMessageSchema>

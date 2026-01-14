@@ -3,19 +3,20 @@ import { ServerWebSocket } from "elysia/ws/bun";
 import { arePlayersReady, getPublicPlayers, getUsername } from "../redis/getters";
 import { events } from "@repo/types/events";
 import { checkCharacter, selectRandomCharacter } from "@repo/alphabets/alphabets";
-import { leaveLobby, lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
+import { kickPlayer, leaveLobby, lobbyStartUp, scoreAndSetupCharacter, setAllPlayersNotReady, setLobbyPhaseToLobby, setPlayerNotReady, setPlayerReady, setupAllPlayersCharacters, } from "../redis/setters";
 import { app } from "@/index";
 
-export async function handleJoinLobby({ ws, playerMetadata }: { ws: ServerWebSocket<{}>, playerMetadata: Player }) {
+export async function handleJoinLobby({ ws, playerMetadata, lobbyMetadata }: { ws: ServerWebSocket<{}>, playerMetadata: Player, lobbyMetadata: Lobby }) {
   const lobbyId = playerMetadata.lobbyId
   const username = playerMetadata.username
   const isReady = playerMetadata.isReady
   const score = playerMetadata.score
-  const user = { username, isReady, score }
+  const target = lobbyMetadata.target
+  const user = { username, isReady, score, isOwner: false }
 
-  const playersData: PublicPlayer[] = await getPublicPlayers({ lobbyId, playerMetadata })
+  const playersData: PublicPlayer[] = await getPublicPlayers({ lobbyMetadata, playerMetadata })
 
-  const userEvent = { event: events.JOINED, data: { user, others: playersData } }
+  const userEvent = { event: events.JOINED, data: { user, others: playersData, target } }
   const othersEvent = { event: events.ANOTHER_PLAYER_JOINED, data: user }
   ws.send(JSON.stringify(userEvent))
   ws.publish(lobbyId, JSON.stringify(othersEvent))
@@ -92,6 +93,28 @@ export async function handleCheckInput({ ws, playerMetadata, lobbyMetadata, even
         ws.publish(lobbyId, JSON.stringify(othersEvent))
       }
     }
+  }
+}
+
+export async function handleKick({ ws, lobbyMetadata, playerMetadata, eventData }: {
+  ws: ServerWebSocket<{}>,
+  lobbyMetadata: Lobby,
+  playerMetadata: Player,
+  eventData: Record<string, string> | undefined,
+}) {
+  if (playerMetadata.sid !== lobbyMetadata.owner || !eventData || !eventData.username) {
+    ws.send(events.INVALID_EVENT_OR_DATA)
+  }
+  else {
+    const username = eventData.username
+    const lobbyId = lobbyMetadata.lobbyId
+    const success = await kickPlayer({ username, lobbyMetadata })
+    if (success) {
+      const event = { event: events.PLAYER_KICKED, data: { username } }
+      app.server?.publish(lobbyId, JSON.stringify(event))
+    }
+    else
+      ws.send(events.INVALID_EVENT_OR_DATA)
   }
 }
 

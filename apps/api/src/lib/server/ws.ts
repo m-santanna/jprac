@@ -1,12 +1,10 @@
 import Elysia from "elysia";
 import { SESSION_COOKIE_SCHEMA } from "./schemas";
-import { getLobbyMetadata, getPlayerMetadata, isPlayerTheLobbyOwner } from "@/lib/redis/getters";
-import { deleteLobbyAndPlayers, leaveLobby } from "@/lib/redis/setters";
-import { app } from "@/index";
+import { getLobbyMetadata, getPlayerMetadata } from "@/lib/redis/getters";
 import { serverJWT } from "@/lib/server/jwt";
 import { Lobby, Player, wsMessageSchema } from "@repo/types/multiplayer";
 import { events } from "@repo/types/events";
-import { handleCheckInput, handleJoinLobby, handleLeave, handleNotReady, handleReady } from "./ws-handlers";
+import { handleCheckInput, handleJoinLobby, handleKick, handleLeave, handleNotReady, handleReady } from "./ws-handlers";
 
 export const serverWS = new Elysia()
   .use(serverJWT)
@@ -17,9 +15,10 @@ export const serverWS = new Elysia()
       const jwt = ws.data.jwt
       const session = ws.data.cookie.session
       const playerMetadata = await getPlayerMetadata({ jwt, session }) as Player
+      const lobbyMetadata = await getLobbyMetadata({ lobbyId }) as Lobby
 
       ws.subscribe(lobbyId)
-      await handleJoinLobby({ ws, playerMetadata })
+      await handleJoinLobby({ ws, playerMetadata, lobbyMetadata })
 
       // for development
       if (!playerMetadata) {
@@ -45,6 +44,8 @@ export const serverWS = new Elysia()
         await handleReady({ ws, playerMetadata, lobbyMetadata })
       else if (event === events.NOT_READY)
         await handleNotReady({ ws, playerMetadata })
+      else if (event === events.KICK)
+        await handleKick({ ws, playerMetadata, lobbyMetadata, eventData })
       else if (event === events.CHECK_INPUT)
         await handleCheckInput({ ws, playerMetadata, eventData, lobbyMetadata })
       else if (event === events.LEAVE)
@@ -55,18 +56,12 @@ export const serverWS = new Elysia()
       const session = ws.data.cookie.session
       const lobbyId = ws.data.params.lobbyId
       const jwt = ws.data.jwt
-      const playerMetada = await getPlayerMetadata({ session, jwt })
+      const playerMetadata = await getPlayerMetadata({ session, jwt })
+      const lobbyMetadata = await getLobbyMetadata({ lobbyId })
       console.log("This user closed connection")
-      console.log(playerMetada!.sid)
-      if (playerMetada) {
-        if (await isPlayerTheLobbyOwner({ sid: playerMetada.sid, lobbyId })) {
-          deleteLobbyAndPlayers({ lobbyId })
-          app.server?.publish(lobbyId, JSON.stringify({ event: "LOBBY_DESTROYED" }))
-        }
-        else {
-          leaveLobby({ lobbyId, sid: playerMetada.sid })
-          ws.send(JSON.stringify({ event: "LEAVE_LOBBY" }))
-        }
+      console.log(playerMetadata!.sid)
+      if (playerMetadata) {
+        await handleLeave({ ws, playerMetadata, lobbyMetadata })
       }
     },
     body: wsMessageSchema,

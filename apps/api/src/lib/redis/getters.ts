@@ -125,12 +125,14 @@ export async function getCharacter({ playerMetadata }: { playerMetadata: Player 
 /**
  * Gets all the players (PublicPlayer format) in the given lobby except the player provided.
  *
- * @param lobbyId The lobbyId to get the players from
+ * @param lobbyMetadata The lobbyMetadata to get the players from
  * @param playerMetadata The player metadata that is requesting the playerMetadata
  *
  * @returns A list with all the PublicPlayers in the lobby, except the player that requested it.
  */
-export async function getPublicPlayers({ lobbyId, playerMetadata }: { lobbyId: string, playerMetadata: Player }): Promise<PublicPlayer[]> {
+export async function getPublicPlayers({ lobbyMetadata, playerMetadata }: { lobbyMetadata: Lobby, playerMetadata: Player }): Promise<PublicPlayer[]> {
+  const lobbyId = lobbyMetadata.lobbyId
+  const owner = lobbyMetadata.owner
   const usefulData: PublicPlayer[] = []
   const sid = playerMetadata.sid
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
@@ -140,7 +142,10 @@ export async function getPublicPlayers({ lobbyId, playerMetadata }: { lobbyId: s
     if (currSid !== sid) {
       const currRaw = await redis.get(`player:${currSid}:meta`)
       const currParsed: Player = JSON.parse(currRaw!)
-      const currData: PublicPlayer = { username: currParsed.username, isReady: currParsed.isReady, score: currParsed.score }
+      let isOwner = false
+      if (currParsed.sid === owner)
+        isOwner = true
+      const currData: PublicPlayer = { username: currParsed.username, isReady: currParsed.isReady, score: currParsed.score, isOwner }
       usefulData.push(currData)
     }
   }
@@ -159,4 +164,24 @@ export async function getUsername({ sid }: { sid: string }) {
   const raw = await redis.get(`player:${sid}:meta`)
   const parsed: Player = JSON.parse(raw!)
   return parsed.username
+}
+
+/**
+ * Gets the sid from the provided username, if they are in the given lobby
+ *
+ * @param username The username of the player
+ * @param lobbyId The lobbyId to check
+ *
+ * @returns The sid, if the username is found in the given lobby, undefined otherwise.
+ */
+export async function getSidFromUsername({ username, lobbyId }: { username: string, lobbyId: string }) {
+  const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
+  for (let i = 0; i < playersArr.length; i++) {
+    const curr = playersArr[i]
+    const raw = await redis.get(`player:${curr}:meta`)
+    const parsed: Player = JSON.parse(raw!)
+    if (parsed.username === username)
+      return curr
+  }
+  return undefined
 }

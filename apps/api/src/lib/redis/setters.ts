@@ -1,6 +1,7 @@
 import { Alphabet, Player, Lobby } from "@repo/types/multiplayer"
 import { redis } from "./client"
 import { selectRandomCharacter } from "@repo/alphabets/alphabets"
+import { getSidFromUsername } from "./getters"
 
 const JOIN_LOBBY_SCRIPT = `
     -- KEYS[1] = lobby:lobbyId:players
@@ -286,3 +287,18 @@ export async function setupAllPlayersCharacters({ lobbyMetadata }: { lobbyMetada
   return character
 }
 
+/**
+ * Kicks a player from a lobby.
+ *
+ * @param username The username of the player to kickPlayer
+ * @param lobbyMetadata The lobby data to kick the user from
+ *
+ * @returns true if operation successful, false otherwise.
+ */
+export async function kickPlayer({ username, lobbyMetadata }: { username: string, lobbyMetadata: Lobby }): Promise<boolean> {
+  const lobbyId = lobbyMetadata.lobbyId
+  const sid = await getSidFromUsername({ username, lobbyId })
+  if (!sid) return false
+  const res = await redis.srem(`lobby:${lobbyId}:players`, sid)
+  return res === 1
+}
