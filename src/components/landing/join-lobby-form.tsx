@@ -6,23 +6,36 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Users } from "lucide-react"
+import { Loader2, Users } from "lucide-react"
+import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation"
 import { toast } from "sonner"
-import z from "zod"
+
+function extractLobbyId(input: string): string {
+  try {
+    const url = new URL(input)
+    const match = url.pathname.match(/\/lobby\/([^\/]+)/)
+    return match ? match[1] : input
+  } catch {
+    return input
+  }
+}
 
 export function JoinLobbyForm() {
   const router = useRouter()
   const [lobbyId, setLobbyId] = useState("")
 
+  const mutation = useJoinLobbyMutation({
+    lobbyId: extractLobbyId(lobbyId),
+    onSuccess: ({ lobbyId }) => {
+      router.push(`/lobby/${lobbyId}`)
+    },
+    onError: (err) => toast.error(err.message)
+  })
+
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!lobbyId.trim()) {
-      toast.error("Please enter a lobby ID")
-      return
-    }
-    const { success } = z.url().safeParse(lobbyId)
-    if (success) router.push(lobbyId)
-    else router.push(`/lobby/${lobbyId}`)
+    mutation.mutate()
   }
 
   return (
@@ -50,8 +63,16 @@ export function JoinLobbyForm() {
           <Button
             type="submit"
             className="w-full bg-emerald-600 hover:bg-emerald-700"
+            disabled={mutation.isPending}
           >
-            Join Lobby
+            {mutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Joining...
+              </>
+            ) : (
+              "Join Lobby"
+            )}
           </Button>
         </form>
       </CardContent>

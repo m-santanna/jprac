@@ -21,28 +21,28 @@ export async function getPlayerMetadata({
   if (!session.value) return undefined
   const payload = await decrypt(session.value)
   if (!payload) return undefined
-  const raw = await redis.get(`player:${payload.sid}:meta`)
-  if (!raw) return undefined
-  return JSON.parse(raw as string)
+  const res: Player | null = await redis.get(`player:${payload.sid}:meta`)
+  if (!res) return undefined
+  return res
 }
 
 /**
- * Gets the metadata of the lobby from redis. Assumes the lobbyId is valid!!!
+ * Gets the metadata of the lobby from redis. 
  *
+ * @pre Assumes the lobbyId is valid!!!
  * @param lobbyId The lobbyId of the lobby we are looking for.
  *
  * @returns The lobby metadata
  */
 export async function getLobbyMetadata({ lobbyId }: { lobbyId: string }): Promise<Lobby> {
-  const lobbyRaw = await redis.get(`lobby:${lobbyId}:meta`)
-  return JSON.parse(lobbyRaw as string)
+  const lobby = await redis.get(`lobby:${lobbyId}:meta`) as Lobby
+  return lobby
 }
 
 export async function isPlayerTheLobbyOwner({ sid, lobbyId }: { sid: string; lobbyId: string }) {
-  const lobbyRaw = await redis.get(`lobby:${lobbyId}:meta`)
-  if (!lobbyRaw) return false
-  const meta: Lobby = JSON.parse(lobbyRaw as string)
-  return meta.owner === sid
+  const lobby: Lobby | null = await redis.get(`lobby:${lobbyId}:meta`)
+  if (!lobby) return false
+  return lobby.owner === sid
 }
 
 /**
@@ -60,13 +60,11 @@ export async function hasUsernameInLobby({
   username: string
   lobbyId: string
 }): Promise<boolean> {
-  // remember that we are saving the playerJWT in the lobby:lobbyId:players set.
   const players: string[] = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < players.length; i++) {
     const playerJWT = players[i]
-    const playerRaw = await redis.get(`player:${playerJWT}:meta`)
-    const playerMeta: Player = JSON.parse(playerRaw as string)
-    if (playerMeta.username === username) return true
+    const player = await redis.get(`player:${playerJWT}:meta`) as Player
+    if (player.username === username) return true
   }
   return false
 }
@@ -111,18 +109,16 @@ export async function isLobbyEmpty({ lobbyId }: { lobbyId: string }): Promise<bo
 export async function arePlayersReady({ lobbyId }: { lobbyId: string }): Promise<boolean> {
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < playersArr.length; i++) {
-    const raw = await redis.get(`player:${playersArr[i]}:meta`)
-    const parsed: Player = JSON.parse(raw as string)
-    if (!parsed.isReady) return false
+    const player = await redis.get(`player:${playersArr[i]}:meta`) as Player
+    if (!player.isReady) return false
   }
   return true
 }
 
 export async function getCharacter({ playerMetadata }: { playerMetadata: Player }) {
   const sid = playerMetadata.sid
-  const raw = await redis.get(`player:${sid}:meta`)
-  const parsed: Player = JSON.parse(raw as string)
-  return parsed.character
+  const player = await redis.get(`player:${sid}:meta`) as Player
+  return player.character
 }
 
 /**
@@ -141,23 +137,17 @@ export async function getPublicPlayers({
   sid: string
 }): Promise<PublicPlayer[]> {
   const lobbyId = lobbyMetadata.lobbyId
-  const owner = lobbyMetadata.owner
   const usefulData: PublicPlayer[] = []
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
 
   for (let i = 0; i < playersArr.length; i++) {
     const currSid = playersArr[i]
     if (currSid !== sid) {
-      const currRaw = await redis.get(`player:${currSid}:meta`)
-      const currParsed: Player = JSON.parse(currRaw as string)
-      let isOwner = false
-      if (currParsed.sid === owner) isOwner = true
+      const currPlayer = await redis.get(`player:${currSid}:meta`) as Player
       const currData: PublicPlayer = {
-        username: currParsed.username,
-        isReady: currParsed.isReady,
-        score: currParsed.score,
-        isOwner,
-        isDisconnected: currParsed.isDisconnected ?? false,
+        username: currPlayer.username,
+        isReady: currPlayer.isReady,
+        score: currPlayer.score,
       }
       usefulData.push(currData)
     }
@@ -174,9 +164,8 @@ export async function getPublicPlayers({
  * @returns The username
  */
 export async function getUsername({ sid }: { sid: string }) {
-  const raw = await redis.get(`player:${sid}:meta`)
-  const parsed: Player = JSON.parse(raw as string)
-  return parsed.username
+  const player = await redis.get(`player:${sid}:meta`) as Player
+  return player.username
 }
 
 /**
@@ -197,9 +186,8 @@ export async function getSidFromUsername({
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < playersArr.length; i++) {
     const curr = playersArr[i]
-    const raw = await redis.get(`player:${curr}:meta`)
-    const parsed: Player = JSON.parse(raw as string)
-    if (parsed.username === username) return curr
+    const player = await redis.get(`player:${curr}:meta`) as Player
+    if (player.username === username) return curr
   }
   return undefined
 }

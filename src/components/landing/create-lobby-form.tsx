@@ -13,21 +13,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
 import { Loader2, Sparkles, Settings } from "lucide-react"
 import { toast } from "sonner"
-import { Alphabet, LobbyCapacity, Target } from "@/types/multiplayer"
+import { Alphabet, Target } from "@/types/multiplayer"
 import { client } from "@/lib/client"
 
 export function CreateLobbyForm() {
   const router = useRouter()
   const [alphabet, setAlphabet] = useState<Alphabet>("hiragana")
-  const [capacity, setCapacity] = useState<LobbyCapacity>(10)
   const [target, setTarget] = useState<Target>(50)
 
   async function createLobby() {
-    const { data, error } = await client["create-lobby"].post({ alphabet, capacity, target })
+    const { data, error } = await client.create.post({ alphabet, target })
     if (error) {
       throw new Error("Failed to create lobby")
     }
@@ -64,8 +63,7 @@ export function CreateLobbyForm() {
             <div className="flex-1">
               <p className="text-sm font-medium text-slate-300">Game Settings</p>
               <p className="text-xs text-slate-500">
-                {alphabet.charAt(0).toUpperCase() + alphabet.slice(1)} • {capacity} players •
-                Target: {target}
+                {alphabet.charAt(0).toUpperCase() + alphabet.slice(1)} • Target: {target}
               </p>
             </div>
             <Popover>
@@ -101,33 +99,26 @@ export function CreateLobbyForm() {
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="capacity" className="text-slate-300">
-                        Max Players
-                      </Label>
-                      <Input
-                        id="capacity"
-                        type="number"
-                        min={2}
-                        max={10}
-                        value={capacity}
-                        onChange={(e) => setCapacity(Number(e.target.value) as LobbyCapacity)}
-                        className="bg-slate-800 border-slate-700"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="target" className="text-slate-300">
-                        Target Score
-                      </Label>
-                      <Input
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="target" className="text-slate-300">
+                          Target Score
+                        </Label>
+                        <span className="text-sm font-medium text-emerald-400">{target}</span>
+                      </div>
+                      <Slider
                         id="target"
-                        type="number"
                         min={10}
-                        value={target}
-                        onChange={(e) => setTarget(Number(e.target.value) as Target)}
-                        className="bg-slate-800 border-slate-700"
+                        max={100}
+                        step={5}
+                        value={[target]}
+                        onValueChange={([value]) => setTarget(value as Target)}
+                        className="py-2"
                       />
+                      <div className="flex justify-between text-xs text-slate-500">
+                        <span>10</span>
+                        <span>100</span>
+                      </div>
                     </div>
                   </div>
                 </div>

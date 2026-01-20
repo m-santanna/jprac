@@ -12,8 +12,9 @@ export type GameMode = z.infer<typeof gamemodeSchema>
 export const gamephaseSchema = z.literal(["lobby", "in-game"])
 export type GamePhase = z.infer<typeof gamephaseSchema>
 
-export const lobbyCapacitySchema = z.coerce.number().min(1).max(10).default(10)
+export const lobbyCapacitySchema = z.literal(10)
 export type LobbyCapacity = z.infer<typeof lobbyCapacitySchema>
+export const DEFAULT_CAPACITY = 10
 
 export const lobbySchema = z.object({
   lobbyId: z.string(),
@@ -33,7 +34,6 @@ export const playerSchema = z.object({
   character: z.string(),
   isReady: z.boolean(),
   score: z.number().min(0).default(0),
-  isDisconnected: z.boolean().default(false),
 })
 export type Player = z.infer<typeof playerSchema>
 
@@ -41,18 +41,23 @@ export const publicPlayerSchema = z.object({
   username: z.string(),
   isReady: z.boolean(),
   score: z.number().min(0).default(0),
-  isOwner: z.boolean(),
-  isDisconnected: z.boolean().default(false),
 })
 export type PublicPlayer = z.infer<typeof publicPlayerSchema>
 
-export const wsMessageSchema = z.object({
-  event: z.string(),
-  data: z
-    .object({
-      input: z.string().optional(),
-      username: z.string().optional(),
-    })
-    .optional(),
-})
-export type WS_Message = z.infer<typeof wsMessageSchema>
+export interface GameData {
+  currentCharacter: string
+  startTime?: number
+  finishTime?: number
+  usedTime?: number
+}
+
+export interface LobbyState {
+  gameState: "LOADING" | "LOBBY" | "COUNTDOWN" | "IN_GAME" | "RESULTS"
+  players: PublicPlayer[]
+  currentUser: PublicPlayer
+  owner: string
+  gameData: GameData
+  target: number
+  capacity: number
+  alphabet: Alphabet
+}

@@ -1,4 +1,4 @@
-import { Alphabet, Player, Lobby } from "@/types/multiplayer"
+import { Alphabet, Player, Lobby, Target } from "@/types/multiplayer"
 import { redis } from "@/lib/redis"
 import { selectRandomCharacter } from "@/lib/alphabets"
 import { getSidFromUsername } from "@/lib/redis-getters"
@@ -48,7 +48,7 @@ export async function createPlayer({
   sid: string
   username: string
   lobbyId: string
-}): Promise<void> {
+}): Promise<Player> {
   const key = `player:${sid}:meta`
   const value: Player = {
     username: username,
@@ -57,9 +57,9 @@ export async function createPlayer({
     score: 0,
     isReady: false,
     character: "",
-    isDisconnected: false,
   }
   await redis.set(key, JSON.stringify(value))
+  return value
 }
 
 /**
@@ -74,13 +74,11 @@ export async function createPlayer({
 export async function createLobby({
   lobbyId,
   sid,
-  capacity,
   target,
   alphabet,
 }: {
   lobbyId: string
   sid: string
-  capacity?: number
   target?: number
   alphabet?: Alphabet
 }): Promise<void> {
@@ -89,7 +87,7 @@ export async function createLobby({
     lobbyId,
     owner: sid,
     target: target ? target : 50,
-    capacity: capacity ? capacity : 10,
+    capacity: 10,
     alphabet: alphabet ? alphabet : "kanji",
     gamephase: "lobby",
   }
@@ -110,17 +108,15 @@ export async function joinLobby({ sid, lobbyId }: { sid: string; lobbyId: string
   const args = [sid]
   try {
     return (await redis.evalsha(JOIN_LOBBY_HASH, keys, args)) as number
-  } catch (err: any) {
-    if (err.message?.includes("NOSCRIPT")) {
-      return (await redis.eval(JOIN_LOBBY_SCRIPT, keys, args)) as number
-    }
-    throw err
+  } catch (_) {
+    return (await redis.eval(JOIN_LOBBY_SCRIPT, keys, args)) as number
   }
 }
 
 /**
  * Leaves the lobby. If the owner of the lobby is the one leaving, the lobby selects a new player to be the owner.
  *
+ * @pre Assumes lobbyId is valid!
  * @param lobbyId - The id of the lobby to delete.
  * @param sid - The sessionId of the player requesting to leave.
  *
@@ -133,15 +129,14 @@ export async function leaveLobby({
   lobbyId: string
   sid: string
 }): Promise<string | undefined> {
-  const lobbyMeta = await redis.get(`lobby:${lobbyId}:meta`)
-  const parsedMeta: Lobby = JSON.parse(lobbyMeta as string)
-  let owner = parsedMeta.owner
+  const lobbyMeta = await redis.get(`lobby:${lobbyId}:meta`) as Lobby
+  let owner = lobbyMeta.owner
   const numOfPlayers = await redis.scard(`lobby:${lobbyId}:players`)
   if (numOfPlayers == 1) {
     await deleteLobbyAndPlayers({ lobbyId })
     return undefined
   } else {
-    if (parsedMeta.owner === sid) owner = await changeOwner({ lobbyMetadata: parsedMeta })
+    if (lobbyMeta.owner === sid) owner = await changeOwner({ lobbyMetadata: lobbyMeta })
 
     await redis.srem(`lobby:${lobbyId}:players`, sid)
     await redis.del(`player:${sid}:meta`)
@@ -184,6 +179,19 @@ export async function changeOwner({
   await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
 
   return newOwner!
+}
+
+/**
+ * Updates the lobby config to the new alphabet and target.
+ *
+ * @param lobbyMetadata The lobby metadata
+ * @param alphabet The alphabet to update
+ * @param target The target to update
+ */
+export async function setLobbyConfig({ alphabet, target, lobbyMetadata }: { lobbyMetadata: Lobby, alphabet: Alphabet, target: Target }) {
+  const lobbyId = lobbyMetadata.lobbyId
+  const updated = { ...lobbyMetadata, target, alphabet }
+  await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
 }
 
 /**
@@ -233,9 +241,8 @@ export async function setAllPlayersNotReady({ lobbyMetadata }: { lobbyMetadata: 
   const players = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < players.length; i++) {
     const currSid = players[i]
-    const raw = await redis.get(`player:${currSid}:meta`)
-    const currPlayer: Player = JSON.parse(raw as string)
-    await setPlayerNotReady({ playerMetadata: currPlayer })
+    const playerMetadata = await redis.get(`player:${currSid}:meta`) as Player
+    await setPlayerNotReady({ playerMetadata })
   }
 }
 
@@ -309,8 +316,7 @@ export async function setupAllPlayersCharacters({
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < playersArr.length; i++) {
     const sid = playersArr[i]
-    const raw = await redis.get(`player:${sid}:meta`)
-    const playerMetadata: Player = JSON.parse(raw as string)
+    const playerMetadata = await redis.get(`player:${sid}:meta`) as Player
     const updated = { ...playerMetadata, character, characterReceivedAt }
     await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
   }
@@ -356,36 +362,4 @@ export async function updatePlayerCharacter({
   const sid = playerMetadata.sid
   const updated: Player = { ...playerMetadata, character }
   await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
-}
-
-/**
- * Marks a player as disconnected and sets a 30-second TTL on their Redis key.
- *
- * @param playerMetadata The player metadata
- */
-export async function setPlayerDisconnected({ playerMetadata }: { playerMetadata: Player }) {
-  const sid = playerMetadata.sid
-  const key = `player:${sid}:meta`
-  const updated: Player = {
-    ...playerMetadata,
-    isDisconnected: true,
-  }
-  await redis.set(key, JSON.stringify(updated))
-  await redis.expire(key, 30)
-}
-
-/**
- * Marks a player as reconnected and removes the TTL from their Redis key.
- *
- * @param playerMetadata The player metadata
- */
-export async function setPlayerReconnected({ playerMetadata }: { playerMetadata: Player }) {
-  const sid = playerMetadata.sid
-  const key = `player:${sid}:meta`
-  const updated: Player = {
-    ...playerMetadata,
-    isDisconnected: false,
-  }
-  await redis.set(key, JSON.stringify(updated))
-  await redis.persist(key)
 }

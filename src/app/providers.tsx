@@ -10,7 +10,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       queries: {
         staleTime: Infinity,
         refetchOnWindowFocus: false,
-        retry: 0,
+        retry: 0
       },
     },
   }))
