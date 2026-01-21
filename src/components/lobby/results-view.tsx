@@ -137,7 +137,7 @@ export function ResultsView({
             className="flex-1 bg-red-800 hover:bg-red-900 text-foreground transition-all duration-300"
           >
             {leaveMutation.isPending
-              ? <Loader2 className="size-4 animate-spin" />
+              ? <><Loader2 className="size-4 animate-spin" />Leaving...</>
               : "Leave Lobby"}
           </Button>
 
