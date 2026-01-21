@@ -18,9 +18,9 @@ export default function LobbyPage() {
   const router = useRouter()
   const params = useParams()
   const lobbyId = params.lobbyId as string
-  const [enabled, setEnabled] = useState(false)
   const [state, setState] = useState<LobbyState>({
     gameState: "LOBBY",
+    realtimeEnabled: false,
     loading: true,
     players: [],
     currentUser: { username: "", isReady: false, score: 0 },
@@ -44,9 +44,9 @@ export default function LobbyPage() {
       return data
     },
     onSuccess: (data) => {
-      setEnabled(true)
       setState((prev) => ({
         ...prev,
+        realtimeEnabled: true,
         gameState: data.gamephase === "in-game" ? "IN_GAME" : "LOBBY",
         currentUser: data.user,
         players: data.others,
@@ -69,7 +69,7 @@ export default function LobbyPage() {
   })
 
   const { status } = useRealtime({
-    enabled,
+    enabled: state.realtimeEnabled,
     channels: [lobbyId],
     onData: ({ event, data }) => {
       if (event === "player.joined") {
@@ -79,11 +79,8 @@ export default function LobbyPage() {
           players: [...prev.players, { username: data.username, score: 0, isReady: false }],
         }))
       }
-      else if (event === "player.left" && data.username === state.currentUser.username) {
-        toast.info("You left the lobby.")
-        setEnabled(false)
-        router.push('/')
-      }
+      // else if (event === "player.left" && data.username === state.currentUser.username) 
+      // We don't need to care about ourselves! That is handled when the player clicks on the button.
       else if (event === "player.left") {
         toast.info(`${data.username} left the lobby`)
         setState((prev) => ({
@@ -93,16 +90,14 @@ export default function LobbyPage() {
       }
       else if (event === "player.kicked" && data.username === state.currentUser.username) {
         toast.error("You were kicked from the lobby")
-        setEnabled(false)
-        router.push('/')
-      }
-      else if (event === "player.kicked") {
-        toast.info(`${data.username} was kicked from the lobby`)
         setState((prev) => ({
           ...prev,
-          players: prev.players.filter((p) => p.username !== data.username),
+          realtimeEnabled: false
         }))
+        router.push('/')
       }
+      // else if (event === "player.kicked")
+      // Also don't need to care. Handled when the owner kicks someone.
       else if (event === "lobby.changed.owner" && data.username === state.currentUser.username) {
         toast.info("You are now the lobby owner")
         setState((prev) => ({
@@ -126,23 +121,22 @@ export default function LobbyPage() {
           alphabet: data.alphabet
         }))
       }
-      else if (event === "player.ready") {
-        data.username === state.currentUser.username
-          ? setState((prev) => ({ ...prev, currentUser: { ...prev.currentUser, isReady: true, score: 0 } }))
-          : setState((prev) => ({
-            ...prev, players: prev.players.map((p) =>
-              p.username === data.username ? { ...p, isReady: true, score: 0 } : p
-            )
-          }))
+      else if (event === "player.ready" && data.username !== state.currentUser.username) {
+        // Don't need to handle ourselves. When button pressed, state updated.
+        setState((prev) => ({
+          ...prev,
+          players: prev.players.map((p) =>
+            p.username === data.username ? { ...p, isReady: true, score: 0 } : p
+          )
+        }))
       }
-      else if (event === "player.notready") {
-        data.username === state.currentUser.username
-          ? setState((prev) => ({ ...prev, currentUser: { ...prev.currentUser, isReady: false } }))
-          : setState((prev) => ({
-            ...prev, players: prev.players.map((p) =>
-              p.username === data.username ? { ...p, isReady: false } : p
-            )
-          }))
+      else if (event === "player.notready" && data.username !== state.currentUser.username) {
+        // Don't need to handle ourselves. When button pressed, state updated.
+        setState((prev) => ({
+          ...prev, players: prev.players.map((p) =>
+            p.username === data.username ? { ...p, isReady: false } : p
+          )
+        }))
       }
       else if (event === "lobby.started") {
         setState((prev) => ({
@@ -263,6 +257,7 @@ export default function LobbyPage() {
         owner={state.owner}
         target={state.target}
         alphabet={state.alphabet}
+        setState={setState}
       />
     )
   }

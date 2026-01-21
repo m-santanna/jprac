@@ -2,25 +2,26 @@
 import { client } from "@/lib/client"
 import { useMutation } from "@tanstack/react-query"
 
-export function useReadyButtonMutation({ isUserReady, onError }: { isUserReady: boolean, onError?: (err: Error) => void }) {
+export function useReadyButtonMutation({ isUserReady, onError, onSuccess }: { isUserReady: boolean, onError?: (err: Error) => void, onSuccess?: (isReady: boolean) => void }) {
   const mutation = useMutation({
     mutationFn: async () => {
       if (isUserReady) {
-        const { data, error } = await client.notready.post()
+        const { error } = await client.notready.post()
         if (error) {
           throw new Error(error.value.message || "Something went wrong.")
         }
-        return data
+        return false
       }
       else {
-        const { data, error } = await client.ready.post()
+        const { error } = await client.ready.post()
         if (error) {
           throw new Error(error.value.message || "Something went wrong.")
         }
-        return data
+        return true
       }
     },
     onError,
+    onSuccess,
   })
   return mutation
 }

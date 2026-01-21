@@ -1,15 +1,16 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check, Copy, Crown, X, Trophy, Languages, Users, Loader2, } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PublicPlayer, Alphabet, DEFAULT_CAPACITY } from "@/types/multiplayer"
+import { PublicPlayer, Alphabet, DEFAULT_CAPACITY, LobbyState } from "@/types/multiplayer"
 import { toast } from "sonner"
-import { client } from "@/lib/client"
 import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
+import { useKickPlayerMutation } from "@/hooks/kick-player-mutation"
+import { useRouter } from "next/navigation"
 
 interface LobbyViewProps {
   lobbyId: string
@@ -18,6 +19,7 @@ interface LobbyViewProps {
   owner: string
   target: number
   alphabet: Alphabet
+  setState: Dispatch<SetStateAction<LobbyState>>
 }
 
 export function LobbyView({
@@ -27,10 +29,12 @@ export function LobbyView({
   owner,
   target,
   alphabet,
+  setState,
 }: LobbyViewProps) {
   const allPlayers = [currentUser, ...players]
   const isOwner = currentUser.username === owner
   const [isCopied, setIsCopied] = useState(false)
+  const router = useRouter()
   const copyTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Cleanup timeout on unmount
@@ -59,12 +63,32 @@ export function LobbyView({
     }, 3000)
   }
 
-  const readyMutation = useReadyButtonMutation({ isUserReady: currentUser.isReady })
-  const leaveMutation = useLeaveLobbyMutation()
-
-  const handleKick = (username: string) => {
-    client.kick.post({ username, lobbyId })
-  }
+  const readyMutation = useReadyButtonMutation({
+    isUserReady: currentUser.isReady,
+    onSuccess: (isReady) => setState((prev) => ({
+      ...prev,
+      currentUser: { ...prev.currentUser, isReady, score: 0 }
+    }))
+  })
+  const leaveMutation = useLeaveLobbyMutation({
+    onSuccess: () => {
+      toast.info("You left the lobby.")
+      setState((prev) => ({
+        ...prev,
+        realtimeEnabled: false
+      }))
+      router.push('/')
+    }
+  })
+  const kickPlayerMutation = useKickPlayerMutation({
+    onSuccess: (username) => {
+      setState((prev) => ({
+        ...prev,
+        players: prev.players.filter((p) => p.username !== username)
+      }))
+      toast.info(`${username} was kicked from the lobby`)
+    }
+  })
 
   return (
     <div className="min-h-screen p-4">
@@ -156,10 +180,15 @@ export function LobbyView({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleKick(player.username)}
-                      className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                      onClick={() => kickPlayerMutation.mutate({ lobbyId, username: player.username })}
+                      disabled={kickPlayerMutation.isPending}
+                      className="h-5 w-5 text-red-400 hover:text-red-300 hover:bg-red-950/30"
                     >
-                      <X className="h-4 w-4" />
+                      {
+                        kickPlayerMutation.isPending
+                          ? <Loader2 className="size-4 animate-spin" />
+                          : <X className="h-4 w-4" />
+                      }
                     </Button>
                   )}
                 </div>

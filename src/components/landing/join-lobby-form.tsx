@@ -26,7 +26,7 @@ export function JoinLobbyForm() {
 
   const mutation = useJoinLobbyMutation({
     lobbyId: extractLobbyId(lobbyId),
-    onSuccess: ({ lobbyId }) => {
+    onSuccess: (lobbyId) => {
       router.push(`/lobby/${lobbyId}`)
     },
     onError: (err) => toast.error(err.message)

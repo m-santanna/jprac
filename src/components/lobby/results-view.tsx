@@ -6,6 +6,8 @@ import { Trophy, Clock, Loader2 } from "lucide-react"
 import { LobbyState, PublicPlayer } from "@/types/multiplayer"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { Dispatch, SetStateAction } from "react"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface ResultsViewProps {
   currentUser: PublicPlayer
@@ -22,6 +24,7 @@ export function ResultsView({
 }: ResultsViewProps) {
   const currentUserRank = finalStandings.findIndex((p) => p.username === currentUser.username) + 1
   const winner = finalStandings[0]!
+  const router = useRouter()
 
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000)
@@ -43,7 +46,16 @@ export function ResultsView({
     }
   }
 
-  const leaveMutation = useLeaveLobbyMutation()
+  const leaveMutation = useLeaveLobbyMutation({
+    onSuccess: () => {
+      toast.info("You left the lobby.")
+      setState((prev) => ({
+        ...prev,
+        realtimeEnabled: false
+      }))
+      router.push('/')
+    }
+  })
 
   return (
     <div className="min-h-screen p-4">

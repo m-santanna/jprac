@@ -1,8 +1,7 @@
-
 import { client } from "@/lib/client"
 import { useMutation } from "@tanstack/react-query"
 
-export function useLeaveLobbyMutation(onError?: (err: Error) => void) {
+export function useLeaveLobbyMutation({ onError, onSuccess }: { onError?: (err: Error) => void, onSuccess?: () => void }) {
   const mutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await client.leave.post()
@@ -12,6 +11,7 @@ export function useLeaveLobbyMutation(onError?: (err: Error) => void) {
       return data
     },
     onError,
+    onSuccess,
   })
   return mutation
 }
