@@ -4,14 +4,16 @@ import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { PublicPlayer } from "@/types/multiplayer"
+import { Alphabet, PublicPlayer } from "@/types/multiplayer"
 import { client } from "@/lib/client"
+import { checkCharacter } from "@/lib/alphabets"
 
 interface GameViewProps {
   character: string
   currentUser: PublicPlayer
   players: PublicPlayer[]
   target: number
+  alphabet: Alphabet
 }
 
 export function GameView({
@@ -19,6 +21,7 @@ export function GameView({
   currentUser,
   players,
   target,
+  alphabet
 }: GameViewProps) {
   const [input, setInput] = useState("")
   const [skipCooldown, setSkipCooldown] = useState(0)
@@ -53,7 +56,7 @@ export function GameView({
     const value = e.target.value
     setInput(value)
 
-    if (value.trim()) {
+    if (checkCharacter({ character, alphabet, input: value })) {
       client.checkinput.post({ input: value })
     }
   }

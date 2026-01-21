@@ -24,6 +24,9 @@ export async function handleGetLobbyState(playerMetadata: Player) {
     capacity: lobbyMetadata.capacity,
     alphabet: lobbyMetadata.alphabet,
     owner: ownerUsername,
+    gamephase: lobbyMetadata.gamephase,
+    character: playerMetadata.character,
+    startTime: lobbyMetadata.startTime,
   }
 
   return state

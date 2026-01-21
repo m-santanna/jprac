@@ -3,18 +3,19 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Check, Copy, Crown, X, Trophy, Languages, Users, } from "lucide-react"
+import { Check, Copy, Crown, X, Trophy, Languages, Users, Loader2, } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PublicPlayer, Alphabet, DEFAULT_CAPACITY } from "@/types/multiplayer"
 import { toast } from "sonner"
 import { client } from "@/lib/client"
+import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
+import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 
 interface LobbyViewProps {
   lobbyId: string
   players: PublicPlayer[]
   currentUser: PublicPlayer
   owner: string
-  isConnected: boolean
   target: number
   alphabet: Alphabet
 }
@@ -24,7 +25,6 @@ export function LobbyView({
   players,
   currentUser,
   owner,
-  isConnected,
   target,
   alphabet,
 }: LobbyViewProps) {
@@ -54,23 +54,16 @@ export function LobbyView({
 
     setIsCopied(true)
     copyTimeoutRef.current = setTimeout(() => {
+      toast.dismiss()
       setIsCopied(false)
     }, 3000)
   }
 
-  const handleReady = () => {
-    if (currentUser.isReady)
-      client.notready.post()
-    else
-      client.ready.post()
-  }
+  const readyMutation = useReadyButtonMutation({ isUserReady: currentUser.isReady })
+  const leaveMutation = useLeaveLobbyMutation()
 
   const handleKick = (username: string) => {
     client.kick.post({ username, lobbyId })
-  }
-
-  const handleLeave = () => {
-    client.leave.post()
   }
 
   return (
@@ -87,7 +80,7 @@ export function LobbyView({
             <Button
               size="icon"
               onClick={handleCopyLink}
-              disabled={isCopied || !isConnected}
+              disabled={isCopied}
               className="h-8 w-8 bg-background text-foreground hover:text-foreground/70 rounded-full transition-all duration-300"
             >
               {isCopied ? (
@@ -177,28 +170,31 @@ export function LobbyView({
 
         <div className="flex gap-4 animate-slide-in-up">
           <Button
-            onClick={handleReady}
+            onClick={() => readyMutation.mutate()}
             className={`flex-1 transition-all duration-300 text-foreground ${currentUser.isReady
               ? "bg-slate-800 hover:bg-slate-700 text-slate-300"
               : "bg-emerald-700 hover:bg-emerald-800"
               }`}
-            disabled={!isConnected}
+            disabled={readyMutation.isPending}
           >
-            {currentUser.isReady ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Ready
-              </>
-            ) : (
-              "Ready Up"
-            )}
+            {readyMutation.isPending
+              ? <Loader2 className="size-4 animate-spin" />
+              : (
+                currentUser.isReady
+                  ? <><Check className="mr-2 h-4 w-4" /> Ready</>
+                  : "Ready Up"
+              )
+            }
           </Button>
           <Button
-            onClick={handleLeave}
-            disabled={!isConnected}
+            onClick={() => leaveMutation.mutate()}
+            disabled={leaveMutation.isPending}
             className="flex-1 bg-red-800 hover:bg-red-900 text-foreground transition-all duration-300"
           >
-            Leave Lobby
+            {leaveMutation.isPending
+              ? <Loader2 className="size-4 animate-spin" />
+              : "Leave Lobby"
+            }
           </Button>
         </div>
       </div>

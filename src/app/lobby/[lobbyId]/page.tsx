@@ -2,68 +2,70 @@
 
 import LoadingView from "@/app/loading";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useRealtime } from "@/lib/realtime-client";
 import { useEffect, useState } from "react";
 import { client } from "@/lib/client";
 import { toast } from "sonner";
 import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation";
-import { LobbyState } from "@/types/multiplayer";
+import { LobbyState, PublicPlayer } from "@/types/multiplayer";
 import { LobbyView } from "@/components/lobby/lobby-view";
 import { CountdownView } from "@/components/lobby/countdown-view";
 import { ResultsView } from "@/components/lobby/results-view";
 import { GameView } from "@/components/lobby/game-view";
 
 export default function LobbyPage() {
-  const queryClient = useQueryClient()
   const router = useRouter()
   const params = useParams()
   const lobbyId = params.lobbyId as string
   const [enabled, setEnabled] = useState(false)
   const [state, setState] = useState<LobbyState>({
-    gameState: "LOADING",
+    gameState: "LOBBY",
+    loading: true,
     players: [],
     currentUser: { username: "", isReady: false, score: 0 },
-    owner: "",
     target: 50,
     capacity: 10,
     alphabet: "hiragana",
+    owner: "",
     gameData: { currentCharacter: "" },
   })
+  const [finalStandings, setFinalStandings] = useState<PublicPlayer[]>([])
 
-  useQuery({
-    queryKey: ['get-lobby-state', lobbyId],
-    queryFn: async () => {
+  useEffect(() => {
+    stateMutation.mutate()
+  }, [])
+
+  const stateMutation = useMutation({
+    mutationFn: async () => {
       const { data, error } = await client.lobby({ lobbyId }).state.get()
-      if (error) {
-        mutation.mutate()
-        return null
-      }
+      if (error)
+        throw new Error(error.value.message)
+      return data
+    },
+    onSuccess: (data) => {
       setEnabled(true)
       setState((prev) => ({
         ...prev,
-        gameState: "LOBBY",
+        gameState: data.gamephase === "in-game" ? "IN_GAME" : "LOBBY",
         currentUser: data.user,
         players: data.others,
         target: data.target,
         capacity: data.capacity,
         alphabet: data.alphabet,
-        owner: data.owner
+        owner: data.owner,
+        gameData: { currentCharacter: data.character, startTime: data.startTime }
       }))
-      return data
     },
+    onError: () => joinMutation.mutate()
   })
-  const mutation = useJoinLobbyMutation({
+  const joinMutation = useJoinLobbyMutation({
     lobbyId,
     onError: (error) => {
       toast.error(error.message)
       router.push('/')
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ['get-lobby-state', lobbyId]
-      })
-    }
+    onSuccess: () => stateMutation.mutate()
   })
 
   const { status } = useRealtime({
@@ -91,8 +93,8 @@ export default function LobbyPage() {
       }
       else if (event === "player.kicked" && data.username === state.currentUser.username) {
         toast.error("You were kicked from the lobby")
-        router.push('/')
         setEnabled(false)
+        router.push('/')
       }
       else if (event === "player.kicked") {
         toast.info(`${data.username} was kicked from the lobby`)
@@ -101,10 +103,19 @@ export default function LobbyPage() {
           players: prev.players.filter((p) => p.username !== data.username),
         }))
       }
+      else if (event === "lobby.changed.owner" && data.username === state.currentUser.username) {
+        toast.info("You are now the lobby owner")
+        setState((prev) => ({
+          ...prev,
+          currentUser: { ...prev.currentUser, isReady: false },
+          owner: data.username,
+        }))
+      }
       else if (event === "lobby.changed.owner") {
         toast.info(`${data.username} is now the lobby owner`)
         setState((prev) => ({
           ...prev,
+          players: prev.players.map((p) => p.username === data.username ? { ...p, isReady: false } : p),
           owner: data.username,
         }))
       }
@@ -117,16 +128,16 @@ export default function LobbyPage() {
       }
       else if (event === "player.ready") {
         data.username === state.currentUser.username
-          ? setState((prev) => ({ ...prev, currentUser: { ...prev.currentUser, isReady: true } }))
+          ? setState((prev) => ({ ...prev, currentUser: { ...prev.currentUser, isReady: true, score: 0 } }))
           : setState((prev) => ({
             ...prev, players: prev.players.map((p) =>
-              p.username === data.username ? { ...p, isReady: true } : p
+              p.username === data.username ? { ...p, isReady: true, score: 0 } : p
             )
           }))
       }
       else if (event === "player.notready") {
         data.username === state.currentUser.username
-          ? setState((prev) => ({ ...prev, gameState: "LOBBY", currentUser: { ...prev.currentUser, isReady: false } }))
+          ? setState((prev) => ({ ...prev, currentUser: { ...prev.currentUser, isReady: false } }))
           : setState((prev) => ({
             ...prev, players: prev.players.map((p) =>
               p.username === data.username ? { ...p, isReady: false } : p
@@ -170,11 +181,12 @@ export default function LobbyPage() {
           gameData: {
             ...prev.gameData,
             currentCharacter: data.character,
-            characterReceivedAt: Date.now(),
           },
         }))
       }
       else if (event === "player.finished" && data.username === state.currentUser.username) {
+        const updatedUser = { ...state.currentUser, score: state.currentUser.score + 1 }
+        setFinalStandings([updatedUser, ...state.players].sort((a, b) => b.score - a.score))
         toast.success("Congrats! You won.")
         setState((prev) => ({
           ...prev,
@@ -186,13 +198,17 @@ export default function LobbyPage() {
           },
           currentUser: {
             ...prev.currentUser,
-            score: prev.currentUser.score + 1,
+            score: 0,
             isReady: false,
           },
-          players: prev.players.map((p) => ({ ...p, isReady: false })),
+          players: prev.players.map((p) => ({ ...p, isReady: false, score: 0 })),
         }))
       }
       else if (event === "player.finished") {
+        const updatedPlayers = state.players.map((p) =>
+          p.username === data.username ? { ...p, score: p.score + 1 } : p
+        )
+        setFinalStandings([state.currentUser, ...updatedPlayers].sort((a, b) => b.score - a.score))
         toast.success(`${data.username} won the game!`)
         setState((prev) => ({
           ...prev,
@@ -205,16 +221,21 @@ export default function LobbyPage() {
           currentUser: {
             ...prev.currentUser,
             isReady: false,
+            score: 0,
           },
-          players: prev.players.map((p) =>
-            p.username === data.username
-              ? ({ ...p, score: p.score + 1, isReady: false })
-              : ({ ...p, isReady: false })
+          players: prev.players.map((p) => ({ ...p, score: 0, isReady: false })
           ),
         }))
       }
     },
   })
+
+  useEffect(() => {
+    if (status === "connected")
+      setState((prev) => ({ ...prev, loading: false }))
+    else
+      setState((prev) => ({ ...prev, loading: true }))
+  }, [status])
 
   useEffect(() => {
     if (state.gameState === "COUNTDOWN" && state.gameData.startTime) {
@@ -230,7 +251,7 @@ export default function LobbyPage() {
     }
   }, [state.gameState, state.gameData.startTime])
 
-  if (state.gameState === "LOADING") {
+  if (state.loading) {
     return <LoadingView />
   }
   if (state.gameState === "LOBBY") {
@@ -240,7 +261,6 @@ export default function LobbyPage() {
         players={state.players}
         currentUser={state.currentUser}
         owner={state.owner}
-        isConnected={status === "connected"}
         target={state.target}
         alphabet={state.alphabet}
       />
@@ -262,6 +282,7 @@ export default function LobbyPage() {
         currentUser={state.currentUser}
         players={state.players}
         target={state.target}
+        alphabet={state.alphabet}
       />
     )
   }
@@ -269,7 +290,8 @@ export default function LobbyPage() {
   if (state.gameState === "RESULTS") {
     return (
       <ResultsView
-        finalStandings={[state.currentUser, ...state.players].sort((a, b) => b.score - a.score)}
+        setState={setState}
+        finalStandings={finalStandings}
         currentUser={state.currentUser}
         usedTime={state.gameData.usedTime!}
       />

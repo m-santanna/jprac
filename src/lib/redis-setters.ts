@@ -145,7 +145,7 @@ export async function leaveLobby({
 }
 
 /**
- * Changes the owner of the given lobby. If the sid is provided, they become the new owner. The lobby assigns a new owner
+ * Changes the owner of the given lobby, and the new owner is set to not ready, if the gamephase is "lobby". If the sid is provided, they become the new owner. The lobby assigns a new owner
  * randomly otherwise.
  *
  * @pre Assumes the lobby has at least 2 players.
@@ -164,9 +164,12 @@ export async function changeOwner({
 }): Promise<string> {
   const lobbyId = lobbyMetadata.lobbyId
   const owner = lobbyMetadata.owner
+  const gamephase = lobbyMetadata.gamephase
   if (sid) {
-    const updated = { ...lobbyMetadata, owner: sid }
-    await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
+    const lobbyUpdated = { ...lobbyMetadata, owner: sid }
+    await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(lobbyUpdated))
+    if (gamephase === "lobby")
+      await setPlayerNotReady({ sid })
     return sid
   }
 
@@ -177,6 +180,9 @@ export async function changeOwner({
 
   const updated = { ...lobbyMetadata, owner: newOwner }
   await redis.set(`lobby:${lobbyId}:meta`, JSON.stringify(updated))
+
+  if (gamephase === "lobby")
+    await setPlayerNotReady({ sid: newOwner })
 
   return newOwner!
 }
@@ -221,14 +227,23 @@ export async function setPlayerReady({ playerMetadata }: { playerMetadata: Playe
 }
 
 /**
- * Sets the player state to not ready. And sets their score to 0.
+ * Sets the player state to not ready. And sets their score to 0. Also allows sid as params.
+ * If playerMetadata is given, sid is ignored.
  *
+ * @pre If given, assumes the sid is valid
  * @param playerMetadata The player metadata
+ * @param sid The sid of the player
  */
-export async function setPlayerNotReady({ playerMetadata }: { playerMetadata: Player }) {
-  const sid = playerMetadata.sid
-  const updated: Player = { ...playerMetadata, score: 0, isReady: false }
-  await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+export async function setPlayerNotReady({ playerMetadata, sid }: { playerMetadata?: Player, sid?: string }) {
+  if (playerMetadata) {
+    const updated: Player = { ...playerMetadata, score: 0, isReady: false }
+    await redis.set(`player:${playerMetadata.sid}:meta`, JSON.stringify(updated))
+  }
+  else {
+    const player: Player = await redis.get(`player:${sid}:meta`) as Player
+    const updated: Player = { ...player, score: 0, isReady: false }
+    await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
+  }
 }
 
 /**
@@ -292,7 +307,7 @@ export async function scoreAndSetupCharacter({
 }) {
   const sid = playerMetadata.sid
   const score = playerMetadata.score + 1
-  const updated = { ...playerMetadata, score, character, characterReceivedAt: Date.now() }
+  const updated = { ...playerMetadata, score, character }
   await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
   return score
 }
@@ -312,12 +327,11 @@ export async function setupAllPlayersCharacters({
   const lobbyId = lobbyMetadata.lobbyId
   const alphabet = lobbyMetadata.alphabet
   const character = selectRandomCharacter(alphabet, "")
-  const characterReceivedAt = Date.now()
   const playersArr = await redis.smembers(`lobby:${lobbyId}:players`)
   for (let i = 0; i < playersArr.length; i++) {
     const sid = playersArr[i]
     const playerMetadata = await redis.get(`player:${sid}:meta`) as Player
-    const updated = { ...playerMetadata, character, characterReceivedAt }
+    const updated = { ...playerMetadata, character }
     await redis.set(`player:${sid}:meta`, JSON.stringify(updated))
   }
   return character
@@ -347,7 +361,7 @@ export async function kickPlayer({
 }
 
 /**
- * Updates the player's character and sets the characterReceivedAt timestamp.
+ * Updates the player's character. 
  *
  * @param playerMetadata The player metadata
  * @param character The new character to assign

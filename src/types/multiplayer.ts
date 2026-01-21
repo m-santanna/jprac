@@ -52,7 +52,8 @@ export interface GameData {
 }
 
 export interface LobbyState {
-  gameState: "LOADING" | "LOBBY" | "COUNTDOWN" | "IN_GAME" | "RESULTS"
+  gameState: "LOBBY" | "COUNTDOWN" | "IN_GAME" | "RESULTS"
+  loading: boolean
   players: PublicPlayer[]
   currentUser: PublicPlayer
   owner: string

@@ -2,20 +2,23 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trophy, Clock } from "lucide-react"
-import { PublicPlayer } from "@/types/multiplayer"
-import { client } from "@/lib/client"
+import { Trophy, Clock, Loader2 } from "lucide-react"
+import { LobbyState, PublicPlayer } from "@/types/multiplayer"
+import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
+import { Dispatch, SetStateAction } from "react"
 
 interface ResultsViewProps {
   currentUser: PublicPlayer
   finalStandings: PublicPlayer[]
   usedTime: number
+  setState: Dispatch<SetStateAction<LobbyState>>
 }
 
 export function ResultsView({
   currentUser,
   finalStandings,
   usedTime,
+  setState
 }: ResultsViewProps) {
   const currentUserRank = finalStandings.findIndex((p) => p.username === currentUser.username) + 1
   const winner = finalStandings[0]!
@@ -40,13 +43,7 @@ export function ResultsView({
     }
   }
 
-  const handlePlayAgain = async () => {
-    await client.notready.post()
-  }
-
-  const handleLeave = async () => {
-    await client.leave.post()
-  }
+  const leaveMutation = useLeaveLobbyMutation()
 
   return (
     <div className="min-h-screen p-4">
@@ -116,19 +113,22 @@ export function ResultsView({
         {/* Action buttons */}
         <div className="flex gap-4 animate-slide-in-up">
           <Button
-            onClick={handlePlayAgain}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-            size="lg"
+            onClick={() => setState((prev) => ({ ...prev, gameState: "LOBBY" }))}
+            className="flex-1 transition-all text-foreground duration-300 bg-emerald-600 hover:bg-emerald-700"
           >
             Play Again
           </Button>
+
           <Button
-            onClick={handleLeave}
-            className="flex-1 bg-red-900 hover:bg-red-950 transition-all duration-300"
-            size="lg"
+            onClick={() => leaveMutation.mutate()}
+            disabled={leaveMutation.isPending}
+            className="flex-1 bg-red-800 hover:bg-red-900 text-foreground transition-all duration-300"
           >
-            Leave Lobby
+            {leaveMutation.isPending
+              ? <Loader2 className="size-4 animate-spin" />
+              : "Leave Lobby"}
           </Button>
+
         </div>
       </div>
     </div>
