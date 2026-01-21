@@ -68,9 +68,9 @@ export function CreateLobbyForm() {
             </div>
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="icon" className="hover:bg-foreground/60 bg-foreground/90 rounded-full">
-                  <Settings className="h-4 w-4" />
-                </Button>
+                <button className="hover:text-foreground/60 text-foreground/90 hover:cursor-pointer rounded-full">
+                  <Settings className="size-5" />
+                </button>
               </PopoverTrigger>
               <PopoverContent className="w-80 bg-slate-900 border-slate-800" align="end">
                 <div className="space-y-4">

@@ -3,23 +3,34 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Check, Copy, Crown, X, Trophy, Languages, Users, Loader2, } from "lucide-react"
+import { Check, Copy, Crown, X, Trophy, Languages, Users, Loader2, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PublicPlayer, Alphabet, DEFAULT_CAPACITY, LobbyState } from "@/types/multiplayer"
+import { PublicPlayer, Alphabet, DEFAULT_CAPACITY, LobbyState, Target } from "@/types/multiplayer"
 import { toast } from "sonner"
 import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { useKickPlayerMutation } from "@/hooks/kick-player-mutation"
 import { useRouter } from "next/navigation"
 import { produce } from "immer"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
+import { useConfigLobbyMutation } from "@/hooks/lobby-config-mutation"
 
 interface LobbyViewProps {
   lobbyId: string
   players: PublicPlayer[]
   currentUser: PublicPlayer
   owner: string
-  target: number
   alphabet: Alphabet
+  target: Target
   setState: Dispatch<SetStateAction<LobbyState>>
 }
 
@@ -28,13 +39,16 @@ export function LobbyView({
   players,
   currentUser,
   owner,
-  target,
   alphabet,
+  target,
   setState,
 }: LobbyViewProps) {
   const allPlayers = [currentUser, ...players]
   const isOwner = currentUser.username === owner
   const [isCopied, setIsCopied] = useState(false)
+  const [localAlphabet, setLocalAlphabet] = useState<Alphabet>(alphabet)
+  const [localTarget, setLocalTarget] = useState<Target>(target)
+  const [open, setOpen] = useState(false)
   const router = useRouter()
   const copyTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
@@ -89,6 +103,16 @@ export function LobbyView({
     }
   })
 
+  const configMutation = useConfigLobbyMutation({
+    onSuccess: () => {
+      setOpen(false)
+      setState(produce((draft) => {
+        draft.alphabet = localAlphabet
+        draft.target = localTarget
+      }))
+    }
+  })
+
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-3xl mx-auto py-8">
@@ -137,6 +161,83 @@ export function LobbyView({
               {allPlayers.length}/{DEFAULT_CAPACITY}
             </span>
           </div>
+
+          {/* Settings (owner only) */}
+          {isOwner && (
+            <Popover open={open} onOpenChange={(open) => setOpen(open)}>
+              <PopoverTrigger asChild>
+                <button className="hover:text-foreground/60 text-foreground/90 hover:cursor-pointer transition-colors">
+                  <Settings className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 bg-slate-900 border-slate-800" align="center">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-white">Lobby Settings</h4>
+                    <p className="text-xs text-slate-500">Customize the game settings</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="lobby-alphabet" className="text-slate-300">
+                        Alphabet
+                      </Label>
+                      <Select value={localAlphabet} onValueChange={(v) => setLocalAlphabet(v as Alphabet)}>
+                        <SelectTrigger
+                          id="lobby-alphabet"
+                          className="bg-slate-800 border-slate-700 w-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900 border-slate-800">
+                          <SelectItem value="hiragana">Hiragana</SelectItem>
+                          <SelectItem value="katakana">Katakana</SelectItem>
+                          <SelectItem value="kanji">Kanji</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="lobby-target" className="text-slate-300">
+                          Target Score
+                        </Label>
+                        <span className="text-sm font-medium text-emerald-400">{localTarget}</span>
+                      </div>
+                      <Slider
+                        id="lobby-target"
+                        min={10}
+                        max={100}
+                        step={5}
+                        value={[localTarget]}
+                        onValueChange={([value]) => setLocalTarget(value as Target)}
+                        className="py-2"
+                      />
+                      <div className="flex justify-between text-xs text-slate-500">
+                        <span>10</span>
+                        <span>100</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={() => configMutation.mutate({ alphabet: localAlphabet, target: localTarget, lobbyId })}
+                      disabled={configMutation.isPending || (localAlphabet === alphabet && localTarget === target)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-foreground"
+                    >
+                      {configMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
         <Card className="mb-6 bg-slate-900/50 border-slate-800 animate-fade-in">

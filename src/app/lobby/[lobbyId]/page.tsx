@@ -111,6 +111,7 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "lobby.changed.config") {
+        toast.info("Lobby settings updated!")
         setState(produce((draft) => {
           draft.target = data.target
           draft.alphabet = data.alphabet

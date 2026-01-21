@@ -28,11 +28,9 @@ export function GameView({
   const [cooldownStart, setCooldownStart] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Focus input on mount (works better on mobile than autoFocus)
+  // Focus input on mount
   useEffect(() => {
-    requestAnimationFrame(() => {
-      inputRef.current?.focus()
-    })
+    inputRef.current?.focus()
   }, [])
 
   // Update skip cooldown timer
