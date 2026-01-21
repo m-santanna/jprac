@@ -11,6 +11,7 @@ import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { useKickPlayerMutation } from "@/hooks/kick-player-mutation"
 import { useRouter } from "next/navigation"
+import { produce } from "immer"
 
 interface LobbyViewProps {
   lobbyId: string
@@ -65,26 +66,24 @@ export function LobbyView({
 
   const readyMutation = useReadyButtonMutation({
     isUserReady: currentUser.isReady,
-    onSuccess: (isReady) => setState((prev) => ({
-      ...prev,
-      currentUser: { ...prev.currentUser, isReady, score: 0 }
+    onSuccess: (isReady) => setState(produce((draft) => {
+      draft.currentUser.isReady = isReady
+      draft.currentUser.score = 0
     }))
   })
   const leaveMutation = useLeaveLobbyMutation({
     onSuccess: () => {
       toast.info("You left the lobby.")
-      setState((prev) => ({
-        ...prev,
-        realtimeEnabled: false
+      setState(produce((draft) => {
+        draft.realtimeEnabled = false
       }))
       router.push('/')
     }
   })
   const kickPlayerMutation = useKickPlayerMutation({
     onSuccess: (username) => {
-      setState((prev) => ({
-        ...prev,
-        players: prev.players.filter((p) => p.username !== username)
+      setState(produce((draft) => {
+        draft.players = draft.players.filter((p) => p.username !== username)
       }))
       toast.info(`${username} was kicked from the lobby`)
     }

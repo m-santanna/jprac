@@ -8,6 +8,7 @@ import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { Dispatch, SetStateAction } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { produce } from "immer"
 
 interface ResultsViewProps {
   currentUser: PublicPlayer
@@ -49,9 +50,8 @@ export function ResultsView({
   const leaveMutation = useLeaveLobbyMutation({
     onSuccess: () => {
       toast.info("You left the lobby.")
-      setState((prev) => ({
-        ...prev,
-        realtimeEnabled: false
+      setState(produce((draft) => {
+        draft.realtimeEnabled = false
       }))
       router.push('/')
     }
@@ -125,7 +125,7 @@ export function ResultsView({
         {/* Action buttons */}
         <div className="flex gap-4 animate-slide-in-up">
           <Button
-            onClick={() => setState((prev) => ({ ...prev, gameState: "LOBBY" }))}
+            onClick={() => setState(produce((draft) => { draft.gameState = "LOBBY" }))}
             className="flex-1 transition-all text-foreground duration-300 bg-emerald-600 hover:bg-emerald-700"
           >
             Play Again

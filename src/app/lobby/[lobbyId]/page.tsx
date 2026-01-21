@@ -13,6 +13,7 @@ import { LobbyView } from "@/components/lobby/lobby-view";
 import { CountdownView } from "@/components/lobby/countdown-view";
 import { ResultsView } from "@/components/lobby/results-view";
 import { GameView } from "@/components/lobby/game-view";
+import { produce } from "immer";
 
 export default function LobbyPage() {
   const router = useRouter()
@@ -44,17 +45,16 @@ export default function LobbyPage() {
       return data
     },
     onSuccess: (data) => {
-      setState((prev) => ({
-        ...prev,
-        realtimeEnabled: true,
-        gameState: data.gamephase === "in-game" ? "IN_GAME" : "LOBBY",
-        currentUser: data.user,
-        players: data.others,
-        target: data.target,
-        capacity: data.capacity,
-        alphabet: data.alphabet,
-        owner: data.owner,
-        gameData: { currentCharacter: data.character, startTime: data.startTime }
+      setState(produce((draft) => {
+        draft.realtimeEnabled = true
+        draft.gameState = data.gamephase === "in-game" ? "IN_GAME" : "LOBBY"
+        draft.currentUser = data.user
+        draft.players = data.others
+        draft.target = data.target
+        draft.capacity = data.capacity
+        draft.alphabet = data.alphabet
+        draft.owner = data.owner
+        draft.gameData = { currentCharacter: data.character, startTime: data.startTime }
       }))
     },
     onError: () => joinMutation.mutate()
@@ -74,25 +74,22 @@ export default function LobbyPage() {
     onData: ({ event, data }) => {
       if (event === "player.joined") {
         toast.info(`${data.username} joined the lobby`)
-        setState((prev) => ({
-          ...prev,
-          players: [...prev.players, { username: data.username, score: 0, isReady: false }],
+        setState(produce((draft) => {
+          draft.players.push({ username: data.username, score: 0, isReady: false })
         }))
       }
       // else if (event === "player.left" && data.username === state.currentUser.username) 
       // We don't need to care about ourselves! That is handled when the player clicks on the button.
       else if (event === "player.left") {
         toast.info(`${data.username} left the lobby`)
-        setState((prev) => ({
-          ...prev,
-          players: prev.players.filter((p) => p.username !== data.username),
+        setState(produce((draft) => {
+          draft.players = draft.players.filter((p) => p.username !== data.username)
         }))
       }
       else if (event === "player.kicked" && data.username === state.currentUser.username) {
         toast.error("You were kicked from the lobby")
-        setState((prev) => ({
-          ...prev,
-          realtimeEnabled: false
+        setState(produce((draft) => {
+          draft.realtimeEnabled = false
         }))
         router.push('/')
       }
@@ -100,102 +97,81 @@ export default function LobbyPage() {
       // Also don't need to care. Handled when the owner kicks someone.
       else if (event === "lobby.changed.owner" && data.username === state.currentUser.username) {
         toast.info("You are now the lobby owner")
-        setState((prev) => ({
-          ...prev,
-          currentUser: { ...prev.currentUser, isReady: false },
-          owner: data.username,
+        setState(produce((draft) => {
+          draft.currentUser.isReady = false
+          draft.owner = data.username
         }))
       }
       else if (event === "lobby.changed.owner") {
         toast.info(`${data.username} is now the lobby owner`)
-        setState((prev) => ({
-          ...prev,
-          players: prev.players.map((p) => p.username === data.username ? { ...p, isReady: false } : p),
-          owner: data.username,
+        setState(produce((draft) => {
+          const player = draft.players.find((p) => p.username === data.username)
+          if (player) player.isReady = false
+          draft.owner = data.username
         }))
       }
       else if (event === "lobby.changed.config") {
-        setState((prev) => ({
-          ...prev,
-          target: data.target,
-          alphabet: data.alphabet
+        setState(produce((draft) => {
+          draft.target = data.target
+          draft.alphabet = data.alphabet
         }))
       }
       else if (event === "player.ready" && data.username !== state.currentUser.username) {
         // Don't need to handle ourselves. When button pressed, state updated.
-        setState((prev) => ({
-          ...prev,
-          players: prev.players.map((p) =>
-            p.username === data.username ? { ...p, isReady: true, score: 0 } : p
-          )
+        setState(produce((draft) => {
+          const player = draft.players.find((p) => p.username === data.username)
+          if (player) {
+            player.isReady = true
+            player.score = 0
+          }
         }))
       }
       else if (event === "player.notready" && data.username !== state.currentUser.username) {
         // Don't need to handle ourselves. When button pressed, state updated.
-        setState((prev) => ({
-          ...prev, players: prev.players.map((p) =>
-            p.username === data.username ? { ...p, isReady: false } : p
-          )
+        setState(produce((draft) => {
+          const player = draft.players.find((p) => p.username === data.username)
+          if (player) player.isReady = false
         }))
       }
       else if (event === "lobby.started") {
-        setState((prev) => ({
-          ...prev,
-          gameState: "COUNTDOWN",
-          gameData: {
-            ...prev.gameData,
-            currentCharacter: data.character,
-            startTime: data.startTime,
-          },
+        setState(produce((draft) => {
+          draft.gameState = "COUNTDOWN"
+          draft.gameData.currentCharacter = data.character
+          draft.gameData.startTime = data.startTime
         }))
       }
       else if (event === "player.scored") {
-        data.username === state.currentUser.username
-          ? setState((prev) => ({
-            ...prev,
-            currentUser: {
-              ...prev.currentUser,
-              score: prev.currentUser.score + 1,
-            },
-            gameData: {
-              ...prev.gameData,
-              currentCharacter: data.character,
-            },
+        if (data.username === state.currentUser.username) {
+          setState(produce((draft) => {
+            draft.currentUser.score += 1
+            draft.gameData.currentCharacter = data.character
           }))
-          : setState((prev) => ({
-            ...prev,
-            players: prev.players.map((p) =>
-              p.username === data.username ? { ...p, score: p.score + 1 } : p,
-            ),
+        } else {
+          setState(produce((draft) => {
+            const player = draft.players.find((p) => p.username === data.username)
+            if (player) player.score += 1
           }))
+        }
       }
       else if (event === "player.skipped" && data.username === state.currentUser.username) {
-        setState((prev) => ({
-          ...prev,
-          gameData: {
-            ...prev.gameData,
-            currentCharacter: data.character,
-          },
+        setState(produce((draft) => {
+          draft.gameData.currentCharacter = data.character
         }))
       }
       else if (event === "player.finished" && data.username === state.currentUser.username) {
         const updatedUser = { ...state.currentUser, score: state.currentUser.score + 1 }
         setFinalStandings([updatedUser, ...state.players].sort((a, b) => b.score - a.score))
         toast.success("Congrats! You won.")
-        setState((prev) => ({
-          ...prev,
-          gameState: "RESULTS",
-          gameData: {
-            ...prev.gameData,
-            finishTime: Date.now(),
-            usedTime: data.usedTime,
-          },
-          currentUser: {
-            ...prev.currentUser,
-            score: 0,
-            isReady: false,
-          },
-          players: prev.players.map((p) => ({ ...p, isReady: false, score: 0 })),
+        setState(produce((draft) => {
+          draft.gameState = "RESULTS"
+          draft.gameData.finishTime = Date.now()
+          draft.gameData.usedTime = data.usedTime
+          draft.currentUser.score = 0
+          draft.currentUser.isReady = false
+          for (const player of draft.players) {
+            player.isReady = false
+            player.score = 0
+          }
         }))
       }
       else if (event === "player.finished") {
@@ -204,21 +180,16 @@ export default function LobbyPage() {
         )
         setFinalStandings([state.currentUser, ...updatedPlayers].sort((a, b) => b.score - a.score))
         toast.success(`${data.username} won the game!`)
-        setState((prev) => ({
-          ...prev,
-          gameState: "RESULTS",
-          gameData: {
-            ...prev.gameData,
-            finishTime: Date.now(),
-            usedTime: data.usedTime,
-          },
-          currentUser: {
-            ...prev.currentUser,
-            isReady: false,
-            score: 0,
-          },
-          players: prev.players.map((p) => ({ ...p, score: 0, isReady: false })
-          ),
+        setState(produce((draft) => {
+          draft.gameState = "RESULTS"
+          draft.gameData.finishTime = Date.now()
+          draft.gameData.usedTime = data.usedTime
+          draft.currentUser.isReady = false
+          draft.currentUser.score = 0
+          for (const player of draft.players) {
+            player.score = 0
+            player.isReady = false
+          }
         }))
       }
     },
@@ -226,9 +197,9 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (status === "connected")
-      setState((prev) => ({ ...prev, loading: false }))
+      setState(produce((draft) => { draft.loading = false }))
     else
-      setState((prev) => ({ ...prev, loading: true }))
+      setState(produce((draft) => { draft.loading = true }))
   }, [status])
 
   useEffect(() => {
@@ -236,11 +207,11 @@ export default function LobbyPage() {
       const timeUntilStart = state.gameData.startTime - Date.now()
       if (timeUntilStart > 0) {
         const timer = setTimeout(() => {
-          setState((prev) => ({ ...prev, gameState: "IN_GAME" }))
+          setState(produce((draft) => { draft.gameState = "IN_GAME" }))
         }, timeUntilStart)
         return () => clearTimeout(timer)
       } else {
-        setState((prev) => ({ ...prev, gameState: "IN_GAME" }))
+        setState(produce((draft) => { draft.gameState = "IN_GAME" }))
       }
     }
   }, [state.gameState, state.gameData.startTime])

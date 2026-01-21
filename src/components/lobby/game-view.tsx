@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,14 @@ export function GameView({
   const [input, setInput] = useState("")
   const [skipCooldown, setSkipCooldown] = useState(0)
   const [cooldownStart, setCooldownStart] = useState<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Focus input on mount (works better on mobile than autoFocus)
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
+  }, [])
 
   // Update skip cooldown timer
   useEffect(() => {
@@ -48,6 +56,8 @@ export function GameView({
     if (skipCooldown <= 0) {
       client.skip.post()
       setCooldownStart(Date.now())
+      // Refocus input after skip
+      inputRef.current?.focus()
     }
   }
 
@@ -88,6 +98,7 @@ export function GameView({
                 {/* Input field */}
                 <div className="max-w-md mx-auto animate-slide-in-up space-y-4">
                   <Input
+                    ref={inputRef}
                     type="text"
                     value={input}
                     onChange={handleInputChange}
@@ -98,7 +109,6 @@ export function GameView({
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck="false"
-                    autoFocus={true}
                   />
 
                   {/* Skip button */}
