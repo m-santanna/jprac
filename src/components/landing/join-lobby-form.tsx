@@ -56,7 +56,7 @@ export function JoinLobbyForm() {
               placeholder="Enter lobby ID or paste link"
               value={lobbyId}
               onChange={(e) => setLobbyId(e.target.value)}
-              className="bg-slate-800 border-slate-700"
+              className="bg-slate-800 border-slate-700 placeholder:text-xs"
             />
           </div>
 
