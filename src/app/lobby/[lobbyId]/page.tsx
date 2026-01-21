@@ -4,7 +4,7 @@ import LoadingView from "@/app/loading";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { useRealtime } from "@/lib/realtime-client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { client } from "@/lib/client";
 import { toast } from "sonner";
 import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation";
@@ -32,6 +32,12 @@ export default function LobbyPage() {
     gameData: { currentCharacter: "" },
   })
   const [finalStandings, setFinalStandings] = useState<PublicPlayer[]>([])
+
+  // Ref to avoid stale closure issues in realtime callback
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   useEffect(() => {
     stateMutation.mutate()
@@ -72,66 +78,98 @@ export default function LobbyPage() {
     enabled: state.realtimeEnabled,
     channels: [lobbyId],
     onData: ({ event, data }) => {
+      // Use ref to get current state values (avoids stale closure)
+      const currentUsername = stateRef.current.currentUser.username
+
       if (event === "player.joined") {
-        toast.info(`${data.username} joined the lobby`)
+        // Skip if it's ourselves or player already exists (deduplication)
+        if (data.username === currentUsername) return
         setState(produce((draft) => {
-          draft.players.push({ username: data.username, score: 0, isReady: false })
+          if (!draft.players.some(p => p.username === data.username)) {
+            toast.info(`${data.username} joined the lobby`)
+            draft.players.push({ username: data.username, score: 0, isReady: false })
+          }
         }))
       }
-      // else if (event === "player.left" && data.username === state.currentUser.username) 
-      // We don't need to care about ourselves! That is handled when the player clicks on the button.
       else if (event === "player.left") {
-        toast.info(`${data.username} left the lobby`)
-        setState(produce((draft) => {
-          draft.players = draft.players.filter((p) => p.username !== data.username)
-        }))
+        if (data.username === currentUsername) {
+          toast.info("You left the lobby.")
+          setState(produce((draft) => {
+            draft.realtimeEnabled = false
+          }))
+          router.push('/')
+        } else {
+          toast.info(`${data.username} left the lobby`)
+          setState(produce((draft) => {
+            draft.players = draft.players.filter((p) => p.username !== data.username)
+          }))
+        }
       }
-      else if (event === "player.kicked" && data.username === state.currentUser.username) {
-        toast.error("You were kicked from the lobby")
-        setState(produce((draft) => {
-          draft.realtimeEnabled = false
-        }))
-        router.push('/')
-      }
-      // else if (event === "player.kicked")
-      // Also don't need to care. Handled when the owner kicks someone.
-      else if (event === "lobby.changed.owner" && data.username === state.currentUser.username) {
-        toast.info("You are now the lobby owner")
-        setState(produce((draft) => {
-          draft.currentUser.isReady = false
-          draft.owner = data.username
-        }))
+      else if (event === "player.kicked") {
+        if (data.username === currentUsername) {
+          toast.error("You were kicked from the lobby")
+          setState(produce((draft) => {
+            draft.realtimeEnabled = false
+          }))
+          router.push('/')
+        } else {
+          setState(produce((draft) => {
+            draft.players = draft.players.filter((p) => p.username !== data.username)
+          }))
+          toast.info(`${data.username} was kicked from the lobby`)
+        }
       }
       else if (event === "lobby.changed.owner") {
-        toast.info(`${data.username} is now the lobby owner`)
-        setState(produce((draft) => {
-          const player = draft.players.find((p) => p.username === data.username)
-          if (player) player.isReady = false
-          draft.owner = data.username
-        }))
+        if (data.username === currentUsername) {
+          toast.info("You are now the lobby owner")
+          setState(produce((draft) => {
+            draft.currentUser.isReady = false
+            draft.owner = data.username
+          }))
+        } else {
+          toast.info(`${data.username} is now the lobby owner`)
+          setState(produce((draft) => {
+            const player = draft.players.find((p) => p.username === data.username)
+            if (player) player.isReady = false
+            draft.owner = data.username
+          }))
+        }
       }
       else if (event === "lobby.changed.config") {
-        toast.info("Lobby settings updated!")
+        // Only show toast if not the owner (owner already knows they changed it)
+        const isOwner = stateRef.current.owner === currentUsername
+        if (!isOwner) {
+          toast.info("Lobby settings updated!")
+        }
         setState(produce((draft) => {
           draft.target = data.target
           draft.alphabet = data.alphabet
         }))
       }
-      else if (event === "player.ready" && data.username !== state.currentUser.username) {
-        // Don't need to handle ourselves. When button pressed, state updated.
+      else if (event === "player.ready") {
+        // Handle ourselves too (for consistency), but also update in mutation callback
         setState(produce((draft) => {
-          const player = draft.players.find((p) => p.username === data.username)
-          if (player) {
-            player.isReady = true
-            player.score = 0
+          if (data.username === draft.currentUser.username) {
+            draft.currentUser.isReady = true
+            draft.currentUser.score = 0
+          } else {
+            const player = draft.players.find((p) => p.username === data.username)
+            if (player) {
+              player.isReady = true
+              player.score = 0
+            }
           }
         }))
       }
-      else if (event === "player.notready" && data.username !== state.currentUser.username) {
-        // Don't need to handle ourselves. When button pressed, state updated.
+      else if (event === "player.notready") {
+        // Handle ourselves too (for consistency), but also update in mutation callback
         setState(produce((draft) => {
-          const player = draft.players.find((p) => p.username === data.username)
-          if (player) player.isReady = false
+          if (data.username === draft.currentUser.username) {
+            draft.currentUser.isReady = false
+          } else {
+            const player = draft.players.find((p) => p.username === data.username)
+            if (player) player.isReady = false
+          }
         }))
       }
       else if (event === "lobby.started") {
@@ -142,56 +180,63 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "player.scored") {
-        if (data.username === state.currentUser.username) {
-          setState(produce((draft) => {
+        setState(produce((draft) => {
+          if (data.username === draft.currentUser.username) {
             draft.currentUser.score += 1
             draft.gameData.currentCharacter = data.character
-          }))
-        } else {
-          setState(produce((draft) => {
+          } else {
             const player = draft.players.find((p) => p.username === data.username)
             if (player) player.score += 1
-          }))
-        }
-      }
-      else if (event === "player.skipped" && data.username === state.currentUser.username) {
-        setState(produce((draft) => {
-          draft.gameData.currentCharacter = data.character
+          }
         }))
       }
-      else if (event === "player.finished" && data.username === state.currentUser.username) {
-        const updatedUser = { ...state.currentUser, score: state.currentUser.score + 1 }
-        setFinalStandings([updatedUser, ...state.players].sort((a, b) => b.score - a.score))
-        toast.success("Congrats! You won.")
+      else if (event === "player.skipped") {
         setState(produce((draft) => {
-          draft.gameState = "RESULTS"
-          draft.gameData.finishTime = Date.now()
-          draft.gameData.usedTime = data.usedTime
-          draft.currentUser.score = 0
-          draft.currentUser.isReady = false
-          for (const player of draft.players) {
-            player.isReady = false
-            player.score = 0
+          if (data.username === draft.currentUser.username) {
+            draft.gameData.currentCharacter = data.character
           }
         }))
       }
       else if (event === "player.finished") {
-        const updatedPlayers = state.players.map((p) =>
-          p.username === data.username ? { ...p, score: p.score + 1 } : p
-        )
-        setFinalStandings([state.currentUser, ...updatedPlayers].sort((a, b) => b.score - a.score))
-        toast.success(`${data.username} won the game!`)
+        // Compute final standings inside setState to avoid stale state
         setState(produce((draft) => {
+          // Update scores first
+          if (data.username === draft.currentUser.username) {
+            draft.currentUser.score += 1
+          } else {
+            const player = draft.players.find((p) => p.username === data.username)
+            if (player) player.score += 1
+          }
+
+          // Compute final standings from draft (current) state
+          const allPlayers = [
+            { ...draft.currentUser },
+            ...draft.players.map(p => ({ ...p }))
+          ].sort((a, b) => b.score - a.score)
+
+          // Update game state
           draft.gameState = "RESULTS"
           draft.gameData.finishTime = Date.now()
           draft.gameData.usedTime = data.usedTime
-          draft.currentUser.isReady = false
+
+          // Reset for next game
           draft.currentUser.score = 0
+          draft.currentUser.isReady = false
           for (const player of draft.players) {
-            player.score = 0
             player.isReady = false
+            player.score = 0
           }
+
+          // Set final standings (this is a side effect but needed)
+          setFinalStandings(allPlayers)
         }))
+
+        // Show appropriate toast
+        if (data.username === currentUsername) {
+          toast.success("Congrats! You won.")
+        } else {
+          toast.success(`${data.username} won the game!`)
+        }
       }
     },
   })

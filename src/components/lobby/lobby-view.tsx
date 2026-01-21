@@ -10,7 +10,6 @@ import { toast } from "sonner"
 import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { useKickPlayerMutation } from "@/hooks/kick-player-mutation"
-import { useRouter } from "next/navigation"
 import { produce } from "immer"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
@@ -49,8 +48,13 @@ export function LobbyView({
   const [localAlphabet, setLocalAlphabet] = useState<Alphabet>(alphabet)
   const [localTarget, setLocalTarget] = useState<Target>(target)
   const [open, setOpen] = useState(false)
-  const router = useRouter()
   const copyTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  // Sync local settings state with props (from realtime updates)
+  useEffect(() => {
+    setLocalAlphabet(alphabet)
+    setLocalTarget(target)
+  }, [alphabet, target])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -85,33 +89,9 @@ export function LobbyView({
       draft.currentUser.score = 0
     }))
   })
-  const leaveMutation = useLeaveLobbyMutation({
-    onSuccess: () => {
-      toast.info("You left the lobby.")
-      setState(produce((draft) => {
-        draft.realtimeEnabled = false
-      }))
-      router.push('/')
-    }
-  })
-  const kickPlayerMutation = useKickPlayerMutation({
-    onSuccess: (username) => {
-      setState(produce((draft) => {
-        draft.players = draft.players.filter((p) => p.username !== username)
-      }))
-      toast.info(`${username} was kicked from the lobby`)
-    }
-  })
-
-  const configMutation = useConfigLobbyMutation({
-    onSuccess: () => {
-      setOpen(false)
-      setState(produce((draft) => {
-        draft.alphabet = localAlphabet
-        draft.target = localTarget
-      }))
-    }
-  })
+  const leaveMutation = useLeaveLobbyMutation({})
+  const kickPlayerMutation = useKickPlayerMutation({})
+  const configMutation = useConfigLobbyMutation({ onSuccess: () => setOpen(false) })
 
   return (
     <div className="min-h-screen p-4">
