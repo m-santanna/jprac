@@ -41,7 +41,7 @@ export async function handleGameStart({ lobbyId }: { lobbyId: string }) {
   const character = await setupAllPlayersCharacters({ lobbyMetadata })
 
   const channel = realtime.channel(lobbyId)
-  channel.emit("lobby.started", { character, startTime })
+  await channel.emit("lobby.started", { character, startTime })
 }
 
 export async function handleChangeLobbyConfig({ playerMetadata, target, alphabet, lobbyId }: {
@@ -56,7 +56,7 @@ export async function handleChangeLobbyConfig({ playerMetadata, target, alphabet
     await setLobbyConfig({ alphabet, target, lobbyMetadata })
 
     const channel = realtime.channel(lobbyId)
-    channel.emit("lobby.changed.config", { target, alphabet })
+    await channel.emit("lobby.changed.config", { target, alphabet })
   }
 }
 
@@ -67,10 +67,10 @@ export async function handleReady(playerMetadata: Player) {
   await setPlayerReady({ playerMetadata })
 
   const channel = realtime.channel(lobbyId)
-  channel.emit("player.ready", { username })
+  await channel.emit("player.ready", { username })
 
   const everyoneReady = await arePlayersReady({ lobbyId })
-  if (everyoneReady) handleGameStart({ lobbyId })
+  if (everyoneReady) await handleGameStart({ lobbyId })
 }
 
 export async function handleNotReady(playerMetadata: Player) {
@@ -80,7 +80,7 @@ export async function handleNotReady(playerMetadata: Player) {
   await setPlayerNotReady({ playerMetadata })
 
   const channel = realtime.channel(lobbyId)
-  channel.emit("player.notready", { username })
+  await channel.emit("player.notready", { username })
 }
 
 export async function handleLeave(playerMetadata: Player) {
@@ -92,11 +92,11 @@ export async function handleLeave(playerMetadata: Player) {
   const after = await leaveLobby({ lobbyId, sid })
 
   const channel = realtime.channel(lobbyId)
-  channel.emit("player.left", { username })
+  await channel.emit("player.left", { username })
 
   if (after && before !== after) {
     const afterUsername = await getUsername({ sid: after })
-    channel.emit("lobby.changed.owner", { username: afterUsername })
+    await channel.emit("lobby.changed.owner", { username: afterUsername })
   }
 }
 
@@ -106,7 +106,7 @@ export async function handleKick({ username, lobbyId, playerMetadata }: { userna
     const success = await kickPlayer({ username, lobbyMetadata })
     if (success) {
       const channel = realtime.channel(lobbyId)
-      channel.emit("player.kicked", { username })
+      await channel.emit("player.kicked", { username })
     }
   }
 }
@@ -124,7 +124,7 @@ export async function handleSkip(playerMetadata: Player) {
     await updatePlayerCharacter({ playerMetadata, character: newCharacter })
 
     const channel = realtime.channel(lobbyId)
-    channel.emit("player.skipped", { username, character: newCharacter })
+    await channel.emit("player.skipped", { username, character: newCharacter })
   }
 }
 
@@ -151,10 +151,10 @@ export async function handleCheckInput({ input, playerMetadata }: { input: strin
         await setAllPlayersNotReady({ lobbyMetadata })
 
         const usedTime = Date.now() - lobbyMetadata.startTime
-        channel.emit("player.finished", { username, usedTime })
+        await channel.emit("player.finished", { username, usedTime })
       }
       else
-        channel.emit("player.scored", { username, character })
+        await channel.emit("player.scored", { username, character })
 
     }
   }

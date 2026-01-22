@@ -83,7 +83,7 @@ export const app = new Elysia({ prefix: "/api" })
       })
 
       const channel = realtime.channel(lobbyId)
-      channel.emit("player.joined", { username })
+      await channel.emit("player.joined", { username })
       return status("OK", { lobbyId })
     },
     SESSION_COOKIE_SCHEMA
