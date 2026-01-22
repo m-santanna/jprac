@@ -228,7 +228,7 @@ export const kanjiMap: Record<string, CharacterData> = {
   間: { romaji: "aida", meaning: "between", meaningVariant: "interval" },
 
   // People (standalone nouns are common)
-  人: { romaji: "hito", meaning: "person" },
+  人: { romaji: "hito", romajiVariant: "jin", meaning: "person" },
   男: { romaji: "otoko", meaning: "man" },
   女: { romaji: "onna", meaning: "woman" },
   子: { romaji: "ko", meaning: "child" },
@@ -422,8 +422,8 @@ export const kanjiMap: Record<string, CharacterData> = {
 
   // Common nouns/compounds
   電話: { romaji: "denwa", meaning: "telephone" },
+  車: { romaji: "kuruma", meaning: "car" },
   電車: { romaji: "densha", meaning: "train" },
-  自動車: { romaji: "jidousha", meaning: "car", meaningVariant: "automobile" },
   食べ物: { romaji: "tabemono", meaning: "food" },
   飲み物: { romaji: "nomimono", meaning: "drink", meaningVariant: "beverage" },
   買い物: { romaji: "kaimono", meaning: "shopping" },

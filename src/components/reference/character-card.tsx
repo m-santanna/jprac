@@ -82,12 +82,14 @@ export function CharacterCard({
 
             {/* Meaning (kanji only) */}
             {isKanji && data.meaning && (
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm gap-3">
                 <span className="text-slate-400">Meaning</span>
-                <span className="text-white font-medium">
-                  {data.meaning}
+                <span className="text-white font-medium text-end">
+                  <span className="">
+                    {data.meaning}{" "}
+                  </span>
                   {data.meaningVariant && (
-                    <span className="text-slate-400 ml-1">
+                    <span className="text-slate-400">
                       / {data.meaningVariant}
                     </span>
                   )}

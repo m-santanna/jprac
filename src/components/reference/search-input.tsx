@@ -2,6 +2,10 @@
 
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { Command, Search, X } from "lucide-react"
+import { useRef } from "react"
+import { useHotkeys } from 'react-hotkeys-hook'
+import { isMobile, isMacOs } from "react-device-detect"
 
 type SearchInputProps = {
   value: string
@@ -10,34 +14,20 @@ type SearchInputProps = {
   totalCount: number
 }
 
-export function SearchInput({
-  value,
-  onChangeAction,
-  resultCount,
-  totalCount,
-}: SearchInputProps) {
-  return (
-    <div className="relative flex items-center gap-3">
-      <div className="relative flex-1 max-w-md">
-        {/* Search icon */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
+export function SearchInput({ value, onChangeAction, resultCount, totalCount }: SearchInputProps) {
+  const ref = useRef<HTMLInputElement>(null)
+  useHotkeys('mod+k', () => {
+    ref.current?.focus()
+  })
 
+  return (
+    <div className="relative flex items-center gap-3 hover:cursor-text" onClick={() => ref.current?.focus()}>
+      <div className="relative flex-1 max-w-md items-center">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
         <Input
+          ref={ref}
           type="text"
-          placeholder="Search by character, romaji, or meaning..."
+          placeholder="Search"
           value={value}
           onChange={(e) => onChangeAction(e.target.value)}
           className={cn(
@@ -46,31 +36,24 @@ export function SearchInput({
             "focus:ring-blue-500 focus:border-blue-500"
           )}
         />
-
+        {/* Keyboard shortcut hint */}
+        {!value && !isMobile && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+            <kbd className="px-1.5 py-0.5 flex items-center text-xs text-slate-500 bg-slate-900/50 rounded border border-slate-700/50">
+              {isMacOs ? <><Command className="size-3" />K</> : "Ctrl+K"}
+            </kbd>
+          </div>
+        )}
         {/* Clear button */}
         {value && (
           <button
             onClick={() => onChangeAction("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 hover:cursor-pointer transition-colors"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="size-4" />
           </button>
         )}
       </div>
-
       {/* Result count */}
       <span className="text-sm text-slate-500 whitespace-nowrap">
         {value ? (
