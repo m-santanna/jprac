@@ -4,6 +4,8 @@ import { selectRandomCharacter } from "@/lib/alphabets"
 import { getSidFromUsername } from "@/lib/redis-getters"
 import crypto from "crypto"
 
+const TTL = 60 * 60 * 24 // 1 day
+
 const JOIN_LOBBY_SCRIPT = `
     -- KEYS[1] = lobby:lobbyId:players
     -- KEYS[2] = lobby:lobbyId:meta
@@ -58,7 +60,7 @@ export async function createPlayer({
     isReady: false,
     character: "",
   }
-  await redis.set(key, JSON.stringify(value))
+  await redis.setex(key, TTL, JSON.stringify(value))
   return value
 }
 
@@ -91,8 +93,9 @@ export async function createLobby({
     alphabet: alphabet ? alphabet : "kanji",
     gamephase: "lobby",
   }
-  await redis.set(key, JSON.stringify(value))
+  await redis.setex(key, TTL, JSON.stringify(value))
   await redis.sadd(`lobby:${lobbyId}:players`, sid)
+  await redis.expire(`lobby:${lobbyId}:players`, TTL)
 }
 
 /**
