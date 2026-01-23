@@ -22,8 +22,8 @@ import { client } from "@/lib/client"
 
 export function CreateLobbyForm() {
   const router = useRouter()
-  const [alphabet, setAlphabet] = useState<Alphabet>("hiragana")
-  const [target, setTarget] = useState<Target>(50)
+  const [alphabet, setAlphabet] = useState<Alphabet>("kanji")
+  const [target, setTarget] = useState<Target>(30)
 
   async function createLobby() {
     const { data, error } = await client.create.post({ alphabet, target })
@@ -36,6 +36,7 @@ export function CreateLobbyForm() {
   const mutation = useMutation({
     mutationFn: createLobby,
     onSuccess: (lobbyId) => {
+      toast.success("Lobby created successfully!")
       router.push(`/lobby/${lobbyId}`)
     },
     onError: (error: Error) => {

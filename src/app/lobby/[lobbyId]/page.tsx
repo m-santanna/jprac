@@ -4,7 +4,7 @@ import LoadingView from "@/app/loading"
 import { useParams, useRouter } from "next/navigation"
 import { useMutation } from "@tanstack/react-query"
 import { useRealtime } from "@/lib/realtime-client"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { client } from "@/lib/client"
 import { toast } from "sonner"
 import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation"
@@ -25,19 +25,13 @@ export default function LobbyPage() {
     loading: true,
     players: [],
     currentUser: { username: "", isReady: false, score: 0 },
-    target: 50,
+    target: 30,
     capacity: 10,
-    alphabet: "hiragana",
+    alphabet: "kanji",
     owner: "",
     gameData: { currentCharacter: "" },
   })
   const [finalStandings, setFinalStandings] = useState<PublicPlayer[]>([])
-
-  // Ref to avoid stale closure issues in realtime callback
-  const stateRef = useRef(state)
-  useEffect(() => {
-    stateRef.current = state
-  }, [state])
 
   useEffect(() => {
     stateMutation.mutate()
@@ -78,12 +72,8 @@ export default function LobbyPage() {
     enabled: state.realtimeEnabled,
     channels: [lobbyId],
     onData: ({ event, data }) => {
-      // Use ref to get current state values (avoids stale closure)
-      const currentUsername = stateRef.current.currentUser.username
-
       if (event === "player.joined") {
-        // Skip if it's ourselves or player already exists (deduplication)
-        if (data.username === currentUsername) return
+        if (data.username === state.currentUser.username) return
         setState(produce((draft) => {
           if (!draft.players.some(p => p.username === data.username)) {
             toast.info(`${data.username} joined the lobby`)
@@ -92,7 +82,7 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "player.left") {
-        if (data.username === currentUsername) {
+        if (data.username === state.currentUser.username) {
           toast.info("You left the lobby.")
           setState(produce((draft) => {
             draft.realtimeEnabled = false
@@ -107,7 +97,7 @@ export default function LobbyPage() {
         }
       }
       else if (event === "player.kicked") {
-        if (data.username === currentUsername) {
+        if (data.username === state.currentUser.username) {
           toast.error("You were kicked from the lobby")
           setState(produce((draft) => {
             draft.realtimeEnabled = false
@@ -122,7 +112,7 @@ export default function LobbyPage() {
         }
       }
       else if (event === "lobby.changed.owner") {
-        if (data.username === currentUsername) {
+        if (data.username === state.currentUser.username) {
           toast.info("You are now the lobby owner")
           setState(produce((draft) => {
             draft.currentUser.isReady = false
@@ -139,8 +129,7 @@ export default function LobbyPage() {
         }
       }
       else if (event === "lobby.changed.config") {
-        // Only show toast if not the owner (owner already knows they changed it)
-        const isOwner = stateRef.current.owner === currentUsername
+        const isOwner = state.owner === state.currentUser.username
         if (!isOwner) {
           toast.info("Lobby settings updated!")
         }
@@ -202,9 +191,7 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "player.finished") {
-        // Compute final standings inside setState to avoid stale state
         setState(produce((draft) => {
-          // Update scores first
           if (data.username === draft.currentUser.username) {
             draft.currentUser.score += 1
           }
@@ -213,13 +200,11 @@ export default function LobbyPage() {
             if (player) player.score += 1
           }
 
-          // Compute final standings from draft (current) state
           const allPlayers = [
             { ...draft.currentUser },
             ...draft.players.map(p => ({ ...p }))
           ].sort((a, b) => b.score - a.score)
 
-          // Update game state
           draft.gameState = "RESULTS"
           draft.gameData.finishTime = Date.now()
           draft.gameData.usedTime = data.usedTime
@@ -231,13 +216,10 @@ export default function LobbyPage() {
             player.isReady = false
             player.score = 0
           }
-
-          // Set final standings (this is a side effect but needed)
           setFinalStandings(allPlayers)
         }))
 
-        // Show appropriate toast
-        if (data.username === currentUsername)
+        if (data.username === state.currentUser.username)
           toast.success("Congrats! You won.")
         else
           toast.success(`${data.username} won the game!`)
