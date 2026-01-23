@@ -1,16 +1,15 @@
 "use client"
 
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check, Copy, Crown, X, Trophy, Languages, Users, Loader2, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PublicPlayer, Alphabet, DEFAULT_CAPACITY, LobbyState, Target } from "@/types/multiplayer"
+import { PublicPlayer, Alphabet, DEFAULT_CAPACITY, Target } from "@/types/multiplayer"
 import { toast } from "sonner"
 import { useReadyButtonMutation } from "@/hooks/ready-button-mutation"
 import { useLeaveLobbyMutation } from "@/hooks/leave-lobby-mutation"
 import { useKickPlayerMutation } from "@/hooks/kick-player-mutation"
-import { produce } from "immer"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import {
@@ -30,7 +29,6 @@ interface LobbyViewProps {
   owner: string
   alphabet: Alphabet
   target: Target
-  setState: Dispatch<SetStateAction<LobbyState>>
 }
 
 export function LobbyView({
@@ -40,7 +38,6 @@ export function LobbyView({
   owner,
   alphabet,
   target,
-  setState,
 }: LobbyViewProps) {
   const allPlayers = [currentUser, ...players]
   const isOwner = currentUser.username === owner
@@ -82,13 +79,7 @@ export function LobbyView({
     }, 3000)
   }
 
-  const readyMutation = useReadyButtonMutation({
-    isUserReady: currentUser.isReady,
-    onSuccess: (isReady) => setState(produce((draft) => {
-      draft.currentUser.isReady = isReady
-      draft.currentUser.score = 0
-    }))
-  })
+  const readyMutation = useReadyButtonMutation({ isUserReady: currentUser.isReady })
   const leaveMutation = useLeaveLobbyMutation({})
   const kickPlayerMutation = useKickPlayerMutation({})
   const configMutation = useConfigLobbyMutation({ onSuccess: () => setOpen(false) })

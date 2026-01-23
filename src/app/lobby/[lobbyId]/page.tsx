@@ -1,19 +1,19 @@
-"use client";
+"use client"
 
-import LoadingView from "@/app/loading";
-import { useParams, useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
-import { useRealtime } from "@/lib/realtime-client";
-import { useEffect, useRef, useState } from "react";
-import { client } from "@/lib/client";
-import { toast } from "sonner";
-import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation";
-import { LobbyState, PublicPlayer } from "@/types/multiplayer";
-import { LobbyView } from "@/components/lobby/lobby-view";
-import { CountdownView } from "@/components/lobby/countdown-view";
-import { ResultsView } from "@/components/lobby/results-view";
-import { GameView } from "@/components/lobby/game-view";
-import { produce } from "immer";
+import LoadingView from "@/app/loading"
+import { useParams, useRouter } from "next/navigation"
+import { useMutation } from "@tanstack/react-query"
+import { useRealtime } from "@/lib/realtime-client"
+import { useEffect, useRef, useState } from "react"
+import { client } from "@/lib/client"
+import { toast } from "sonner"
+import { useJoinLobbyMutation } from "@/hooks/join-lobby-mutation"
+import { LobbyState, PublicPlayer } from "@/types/multiplayer"
+import { LobbyView } from "@/components/lobby/lobby-view"
+import { CountdownView } from "@/components/lobby/countdown-view"
+import { ResultsView } from "@/components/lobby/results-view"
+import { GameView } from "@/components/lobby/game-view"
+import { produce } from "immer"
 
 export default function LobbyPage() {
   const router = useRouter()
@@ -98,7 +98,8 @@ export default function LobbyPage() {
             draft.realtimeEnabled = false
           }))
           router.push('/')
-        } else {
+        }
+        else {
           toast.info(`${data.username} left the lobby`)
           setState(produce((draft) => {
             draft.players = draft.players.filter((p) => p.username !== data.username)
@@ -112,7 +113,8 @@ export default function LobbyPage() {
             draft.realtimeEnabled = false
           }))
           router.push('/')
-        } else {
+        }
+        else {
           setState(produce((draft) => {
             draft.players = draft.players.filter((p) => p.username !== data.username)
           }))
@@ -126,7 +128,8 @@ export default function LobbyPage() {
             draft.currentUser.isReady = false
             draft.owner = data.username
           }))
-        } else {
+        }
+        else {
           toast.info(`${data.username} is now the lobby owner`)
           setState(produce((draft) => {
             const player = draft.players.find((p) => p.username === data.username)
@@ -147,12 +150,12 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "player.ready") {
-        // Handle ourselves too (for consistency), but also update in mutation callback
         setState(produce((draft) => {
           if (data.username === draft.currentUser.username) {
             draft.currentUser.isReady = true
             draft.currentUser.score = 0
-          } else {
+          }
+          else {
             const player = draft.players.find((p) => p.username === data.username)
             if (player) {
               player.isReady = true
@@ -162,11 +165,11 @@ export default function LobbyPage() {
         }))
       }
       else if (event === "player.notready") {
-        // Handle ourselves too (for consistency), but also update in mutation callback
         setState(produce((draft) => {
           if (data.username === draft.currentUser.username) {
             draft.currentUser.isReady = false
-          } else {
+          }
+          else {
             const player = draft.players.find((p) => p.username === data.username)
             if (player) player.isReady = false
           }
@@ -184,7 +187,8 @@ export default function LobbyPage() {
           if (data.username === draft.currentUser.username) {
             draft.currentUser.score += 1
             draft.gameData.currentCharacter = data.character
-          } else {
+          }
+          else {
             const player = draft.players.find((p) => p.username === data.username)
             if (player) player.score += 1
           }
@@ -203,7 +207,8 @@ export default function LobbyPage() {
           // Update scores first
           if (data.username === draft.currentUser.username) {
             draft.currentUser.score += 1
-          } else {
+          }
+          else {
             const player = draft.players.find((p) => p.username === data.username)
             if (player) player.score += 1
           }
@@ -232,11 +237,10 @@ export default function LobbyPage() {
         }))
 
         // Show appropriate toast
-        if (data.username === currentUsername) {
+        if (data.username === currentUsername)
           toast.success("Congrats! You won.")
-        } else {
+        else
           toast.success(`${data.username} won the game!`)
-        }
       }
     },
   })
@@ -256,7 +260,8 @@ export default function LobbyPage() {
           setState(produce((draft) => { draft.gameState = "IN_GAME" }))
         }, timeUntilStart)
         return () => clearTimeout(timer)
-      } else {
+      }
+      else {
         setState(produce((draft) => { draft.gameState = "IN_GAME" }))
       }
     }
@@ -274,7 +279,6 @@ export default function LobbyPage() {
         owner={state.owner}
         target={state.target}
         alphabet={state.alphabet}
-        setState={setState}
       />
     )
   }
