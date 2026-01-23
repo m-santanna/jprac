@@ -24,29 +24,31 @@ export function CreateLobbyForm() {
   const router = useRouter()
   const [alphabet, setAlphabet] = useState<Alphabet>("kanji")
   const [target, setTarget] = useState<Target>(30)
+  const [loading, setLoading] = useState(false)
 
-  async function createLobby() {
-    const { data, error } = await client.create.post({ alphabet, target })
-    if (error) {
-      throw new Error("Failed to create lobby")
-    }
-    return data.lobbyId
-  }
-
-  const mutation = useMutation({
-    mutationFn: createLobby,
+  const { mutate } = useMutation({
+    mutationFn: async () => {
+      setLoading(true)
+      const { data, error } = await client.create.post({ alphabet, target })
+      if (error) {
+        throw new Error("Failed to create lobby")
+      }
+      return data.lobbyId
+    },
     onSuccess: (lobbyId) => {
       toast.success("Lobby created successfully!")
       router.push(`/lobby/${lobbyId}`)
+      setLoading(false)
     },
     onError: (error: Error) => {
+      setLoading(false)
       toast.error(error.message)
     },
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    mutation.mutate()
+    mutate()
   }
 
   return (
@@ -130,9 +132,9 @@ export function CreateLobbyForm() {
           <Button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700 text-foreground"
-            disabled={mutation.isPending}
+            disabled={loading}
           >
-            {mutation.isPending ? (
+            {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Creating...
